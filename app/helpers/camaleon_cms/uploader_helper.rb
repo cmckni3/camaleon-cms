@@ -35,7 +35,7 @@ module CamaleonCms::UploaderHelper
     settings[:uploaded_io] = uploaded_io
     settings = {
         folder: "",
-        maximum: 100.megabytes,
+        maximum: 200.megabytes,
         formats: "*",
         generate_thumb: true,
         temporal_time: 0,
