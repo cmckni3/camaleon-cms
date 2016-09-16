@@ -26,6 +26,8 @@ class CamaleonCms::CamaleonController < ApplicationController
   include CamaleonCms::EmailHelper
   include Mobu::DetectMobile
 
+  PluginRoutes.all_helpers.each { |h| include h.constantize }
+
   prepend_before_action :cama_load_custom_models
   before_action :cama_site_check_existence, except: [:render_error, :captcha]
   before_action :cama_before_actions, except: [:render_error, :captcha]
@@ -51,11 +53,8 @@ class CamaleonCms::CamaleonController < ApplicationController
 
   private
   def cama_before_actions
-    # including all helpers (system, themes, plugins) for this site
-    PluginRoutes.enabled_apps(current_site, current_theme.slug).each{|plugin| plugin_load_helpers(plugin) }
-
     # initializing short codes
-    shortcodes_init()
+    shortcodes_init
 
     # initializing before and after contents
     cama_html_helpers_init

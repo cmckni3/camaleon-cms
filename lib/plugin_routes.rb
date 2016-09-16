@@ -168,6 +168,16 @@ class PluginRoutes
   end
 
   # all helpers of enabled plugins
+  def self.all_helpers
+    r = cache_variable("plugins_helper")
+    return r unless r.nil?
+    res = []
+    all_apps.each do |settings|
+      res += settings["helpers"] if settings["helpers"].present?
+    end
+    cache_variable("plugins_helper", res.uniq)
+  end
+
   def self.plugin_helpers
     r = cache_variable("plugins_helper")
     return r unless r.nil?
