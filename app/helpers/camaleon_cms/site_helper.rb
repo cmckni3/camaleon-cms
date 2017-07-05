@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::SiteHelper
   # return current site or assign a site as a current site
   def current_site(site = nil)
@@ -13,7 +5,7 @@ module CamaleonCms::SiteHelper
     return $current_site if defined?($current_site)
     return @current_site if defined?(@current_site)
     if PluginRoutes.get_sites.size == 1
-      site = CamaleonCms::Site.first.decorate
+      site = CamaleonCms::Site.first.decorate rescue nil
     else
       host = [request.original_url.to_s.parse_domain]
       host << request.subdomain if request.subdomain.present?
@@ -21,19 +13,8 @@ module CamaleonCms::SiteHelper
     end
     r = {site: site, request: request};
     cama_current_site_helper(r) rescue nil
-    puts "============================ Please define the $current_site = CamaleonCms::Site.first.decorate " unless r[:site].present?
+    Rails.logger.error 'Camaleon CMS - Please define your current site: $current_site = CamaleonCms::Site.first.decorate or map your domains: http://camaleon.tuzitio.com/documentation/category/139779-examples/how.html'.cama_log_style(:red) if !r[:site].present?
     @current_site = r[:site]
-  end
-
-  # check if current site exist, if not, this will be redirected to main domain
-  def cama_site_check_existence()
-    if !current_site.present?
-      if Cama::Site.main_site.present?
-        redirect_to Cama::Site.main_site.decorate.the_url
-      else
-        redirect_to cama_admin_installers_path
-      end
-    end
   end
 
   # return current theme model for current site
@@ -42,24 +23,26 @@ module CamaleonCms::SiteHelper
   end
 
   # get list templates files of current theme
-  def cama_get_list_template_files
+  def cama_get_list_template_files(post_type)
     contained_files = []
     Dir[File.join(current_theme.settings["path"], "views", '*')].each do |path|
       f_name = File.basename(path)
       contained_files << f_name.split(".").first if f_name.include?('template_')
     end
-    contained_files
+    _args={tempates: contained_files, post_type: post_type}; hooks_run("post_get_list_templates", _args)
+    _args[:tempates]
   end
 
   # get list layouts files of current theme
   # return an array of layouts for current theme
-  def cama_get_list_layouts_files
+  def cama_get_list_layouts_files(post_type)
     contained_files = []
     Dir[File.join(current_theme.settings["path"], "views", "layouts", '*')].each do |path|
       f_name = File.basename(path)
       contained_files << f_name.split(".").first unless f_name.start_with?('_')
     end
-    contained_files
+    _args={layouts: contained_files, post_type: post_type}; hooks_run("post_get_list_layouts", _args)
+    _args[:layouts]
   end
 
 
@@ -105,22 +88,16 @@ module CamaleonCms::SiteHelper
     # theme_model.destroy
   end
 
-
-  # load all custom models customized by plugins or templates in custom_models.rb
-  def site_load_custom_models(site)
-    PluginRoutes.enabled_apps(site).each{ |app|
-      next if !app.present? || !app["path"].present?
-      s = File.join(app["path"], "config", "custom_models.rb")
-      eval(File.read(s)) if File.exist?(s)
-    }
+  # add host + port to args of the current site visited (only if the request is coming from console or tasks i.e. not web browser)
+  # args: Hash
+  # sample: {} will return {host: 'localhost', port: 3000}
+  def cama_current_site_host_port(args)
+    args[:host], args[:port] = current_site.try(:get_domain).to_s.split(':') if cama_is_test_request?
+    args
   end
 
-  #################### ONLY FOR CONSOLE ####################
-  # switch console sessions and redefine current for the console session
-  # site: Site model used as current site
-  # return nil
-  def site_console_switch(site = nil)
-    $current_site = site
-    site_load_custom_models($current_site)
+  # check if the request created by draper or request is not defined
+  def cama_is_test_request?
+    (request && defined?(ActionController::TestRequest) && request.is_a?(ActionController::TestRequest)) || !request
   end
 end

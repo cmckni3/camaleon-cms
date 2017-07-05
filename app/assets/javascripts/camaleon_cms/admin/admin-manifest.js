@@ -19,9 +19,10 @@
 
 // date picker
 //= require ./momentjs/_moment
-//= require ./bootstrap-datepicker
+//= require ./_bootstrap-datepicker
 
 //= require jquery_ujs
+//= require ./_bootstrap-select
 
 //= require ./_jquery.slugify
 //= require ./_translator
@@ -32,8 +33,7 @@
 //= require ./_actions
 //= require ./introjs/_intro.min
 
-
-//= require ./_modal
+// uploader
 //= require ./uploader/uploader_manifest
 
 //= require ./tageditor/_jquery.caret.min
@@ -48,3 +48,8 @@
 // post
 //= require ./_jquery.tagsinput.min
 //= require ./_post
+
+//= require ./_posttype
+
+// others
+//= require ./_user_profile

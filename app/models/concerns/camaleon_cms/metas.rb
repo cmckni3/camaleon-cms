@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::Metas extend ActiveSupport::Concern
   included do
     # options and metas auto save support
@@ -14,7 +6,7 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
     after_create  :save_metas_options, unless: :save_metas_options_skip
     before_update :fix_save_metas_options_no_changed
 
-    has_many :metas, ->(object){where(object_class: object.class.to_s.gsub("Decorator","").gsub("CamaleonCms::", ""))}, :class_name => "CamaleonCms::Meta", foreign_key: :objectid, dependent: :destroy
+    has_many :metas, ->(object){ where(object_class: object.class.to_s.gsub("Decorator","").gsub("CamaleonCms::", "")) }, class_name: "CamaleonCms::Meta", foreign_key: :objectid, dependent: :delete_all
   end
 
   # Add meta with value or Update meta with key: key
@@ -30,11 +22,11 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
   def get_meta(key, default = nil)
     key_str = key.is_a?(Symbol) ? key.to_s : key
     cama_fetch_cache("meta_#{key_str}") do
-      option = metas.select { |m| m.key.eql?(key_str) }.first
+      option = metas.loaded? ? metas.select{|m| m.key == key }.first : metas.where(key: key_str).first
       res = ''
       if option.present?
         value = JSON.parse(option.value) rescue option.value
-        res = (value.is_a?(Hash) ? value.to_sym : value) rescue option.value
+        res = (value.is_a?(Hash) ? value.with_indifferent_access : value) rescue option.value
       end
       res == '' ? default : res
     end
@@ -50,6 +42,7 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
   def options(meta_key = "_default")
     get_meta(meta_key, {})
   end
+  alias_method :cama_options, :options
 
   # add configuration for current object
   # key: attribute name
@@ -58,7 +51,7 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
   # sample: mymodel.set_custom_option("my_settings", "color", "red")
   def set_option(key, value = nil, meta_key = "_default")
     return if key.nil?
-    data = options(meta_key)
+    data = cama_options(meta_key)
     data[key] = fix_meta_var(value)
     set_meta(meta_key, data)
     value
@@ -70,14 +63,14 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
   # return default if option value == ""
   # return value for attribute
   def get_option(key = nil, default = nil, meta_key = "_default")
-    values = options(meta_key)
+    values = cama_options(meta_key)
     key = key.to_sym
     values.has_key?(key) && values[key] != "" ? values[key] : default
   end
 
   # delete attribute from configuration
   def delete_option(key, meta_key = "_default")
-    values = options(meta_key)
+    values = cama_options(meta_key)
     key = key.to_sym
     values.delete(key) if values.has_key?(key)
     set_meta(meta_key, values)
@@ -85,13 +78,22 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
 
   # set multiple configurations
   # h: {ket1: "sdsds", ff: "fdfdfdfd"}
-  def set_multiple_options(h = {}, meta_key = "_default")
+  def set_options(h = {}, meta_key = "_default")
     if h.present?
-      data = options(meta_key)
-      h.to_sym.each do |key, value|
+      data = cama_options(meta_key)
+      PluginRoutes.fixActionParameter(h).to_sym.each do |key, value|
         data[key] = fix_meta_var(value)
       end
       set_meta(meta_key, data)
+    end
+  end
+  alias_method :set_multiple_options, :set_options
+
+  # save multiple metas
+  # sample: set_metas({name: 'Owen', email: 'owenperedo@gmail.com'})
+  def set_metas(data_metas)
+    (data_metas.nil? ? {} : data_metas).each do |key, value|
+      self.set_meta(key, value)
     end
   end
 
@@ -119,7 +121,7 @@ module CamaleonCms::Metas extend ActiveSupport::Concern
   private
   # fix to parse value
   def fix_meta_value(value)
-    if (value.is_a?(Array) || value.is_a?(Hash))
+    if (value.is_a?(Array) || value.is_a?(Hash) || value.is_a?(ActionController::Parameters))
       value = value.to_json
     end
     fix_meta_var(value)

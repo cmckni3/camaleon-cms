@@ -1,13 +1,5 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
-  skip_before_filter :cama_authenticate
+  skip_before_action :cama_authenticate, raise: false
   before_action :before_hook_session
   after_action :after_hook_session
   before_action :verificate_register_permission, only: [:register]
@@ -25,10 +17,8 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
   end
 
   def login_post
-    data_user = params[:user]
-    cipher = Gibberish::AES::CBC.new(cama_get_session_id)
-    data_user[:password] = cipher.decrypt(data_user[:password]) rescue nil
-    @user = current_site.users.find_by_username(data_user[:username])
+    data_user = user_permit_data
+    @user = current_site.users.by_username(data_user[:username]).first
     captcha_validate = captcha_verify_if_under_attack("login")
     r = {user: @user, params: params, password: data_user[:password], captcha_validate: captcha_validate, stop_process: false}; hooks_run("user_before_login", r)
     return if r[:stop_process] # permit to redirect for data completion
@@ -36,12 +26,14 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
       #Email validation if is necessary
       if @user.is_valid_email? || !current_site.need_validate_email?
         cama_captcha_reset_attack("login")
-        r={user: @user, redirect_to: nil}; hooks_run('after_login', r)
+        r={user: @user, redirect_to: params[:format] == 'json' ? false : nil}; hooks_run('after_login', r)
         login_user(@user, params[:remember_me].present?, r[:redirect_to])
+        render(json: flash.discard.to_hash) if params[:format] == 'json'
+        return
       else
         flash[:error] = t('camaleon_cms.admin.login.message.email_not_validated')
         @user = current_site.users.new(data_user)
-        login
+        login if params[:format] != 'json'
       end
     else
       cama_captcha_increment_attack("login")
@@ -51,12 +43,18 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
         flash[:error] = t('camaleon_cms.admin.login.message.invalid_caption')
       end
       @user = current_site.users.new(data_user)
-      login
+      login if params[:format] != 'json'
     end
+    render(json: flash.discard.to_hash) if params[:format] == 'json'
   end
 
   def logout
-    cama_logout_user
+    if session[:parent_auth_token].present? && cama_sign_in?
+      session_back_to_parent(cama_admin_dashboard_path)
+    else
+      cama_logout_user
+    end
+
   end
 
 
@@ -92,7 +90,7 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
     # TODO: Move this out of the controller
     # send email reset password
     if params[:user].present?
-      data_user = params[:user]
+      data_user = user_permit_data
       @user = current_site.users.find_by_email(data_user[:email])
       if @user.present?
         send_password_reset_email(@user)
@@ -111,12 +109,9 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
     if params[:user].present?
       params[:user][:role] = PluginRoutes.system_info["default_user_role"]
       params[:user][:is_valid_email] = false if current_site.need_validate_email?
-      user_data = params[:user]
+      user_data = user_permit_data
       result = cama_register_user(user_data, params[:meta])
       if result[:result] == false && result[:type] == :captcha_error
-        @first_name = params[:meta][:first_name]
-        @last_name = params[:meta][:last_name]
-
         @user.errors[:captcha] = t('camaleon_cms.admin.users.message.error_captcha')
         render 'register'
       elsif result[:result]
@@ -125,8 +120,6 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
         r = {user: @user, redirect_url: result[:redirect_url]}; hooks_run('user_registered', r)
         redirect_to r[:redirect_url]
       else
-        @first_name = params[:meta][:first_name]
-        @last_name = params[:meta][:last_name]
         render 'register'
       end
     else
@@ -154,7 +147,8 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
   private
 
   def before_hook_session
-    I18n.locale = params[:locale] || current_site.get_languages.first
+    session[:cama_current_language] = params[:cama_set_language].to_sym if params[:cama_set_language].present?
+    I18n.locale = params[:locale] || session[:cama_current_language] || current_site.get_languages.first
     hooks_run("session_before_load")
   end
 
@@ -168,6 +162,10 @@ class CamaleonCms::Admin::SessionsController < CamaleonCms::CamaleonController
       flash[:error] = t('camaleon_cms.admin.authorization_error', default: "You don't have authorization for this section.")
       return redirect_to action: :login
     end
+  end
+
+  def user_permit_data
+    params.require(:user).permit!
   end
 
 end

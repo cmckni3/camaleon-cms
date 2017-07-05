@@ -21,7 +21,7 @@
       display: none;
     }
     .panel-heading {
-      overflow: hidden;
+      //overflow: hidden;
       position: relative;
       .panel-controls {
         float: right;
@@ -152,10 +152,7 @@
       width: 30px;
     }
   }
-  ul {
-    padding: 0;
-    list-style: none;
-  }
+
   // translations
   .trans_panel {
     .nav-tabs .has-error {
@@ -189,6 +186,15 @@
       & + .group-input-fields-content {
         margin-left: 75px;
       }
+    }
+  }
+  .custom_sortable_grouped .header-field-grouped{
+    padding: 5px;
+    margin-bottom: 3px;
+    .fa{
+      @include link_round;
+      display: inline-block;
+      float: none;
     }
   }
 }
@@ -227,6 +233,8 @@ div.mce-fullscreen{
 
 //************** custom loading style
 #cama_custom_loading{
+  position: relative;
+  z-index: 999999;
   .back_spinner{
     position: fixed;
     z-index: 99998;
@@ -277,4 +285,8 @@ input.code_style{
     max-height: 100px;
     max-width: 200px;
   }
+}
+label.error, span.error{
+  color: #a94442;
+  font-size: 11px;
 }

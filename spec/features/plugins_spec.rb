@@ -1,9 +1,10 @@
+require "rails_helper"
 describe "the Menus", js: true do
   login_success
 
   it "Plugins list" do
     admin_sign_in
-    visit "#{cama_root_path}/admin/plugins"
+    visit "#{cama_root_relative_path}/admin/plugins"
     expect(page).to have_css('#table-plugins-list')
     expect(page).to have_content("Attack")
     expect(page).to have_content("Contact Form")
@@ -14,7 +15,7 @@ describe "the Menus", js: true do
     within '#tab_plugins_active' do
       all(".btn-default")[0].click
     end
-    page.driver.browser.switch_to.alert.accept
+    confirm_dialog
     expect(page).to have_css('.alert-success')
 
     # install plugin
@@ -22,7 +23,7 @@ describe "the Menus", js: true do
     within '#tab_plugins_disabled' do
       all(".btn-default")[0].click
     end
-    page.driver.browser.switch_to.alert.accept
+    confirm_dialog
     expect(page).to have_css('.alert-success')
   end
 end

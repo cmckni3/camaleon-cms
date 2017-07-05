@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::ApplicationDecorator < Draper::Decorator
   delegate_all
   @_deco_locale = nil
@@ -34,7 +26,7 @@ class CamaleonCms::ApplicationDecorator < Draper::Decorator
 
   # return updated at date formatted
   def the_updated_at(format = :long)
-    h.l(object.created_at, format: format.to_sym)
+    h.l(object.updated_at, format: format.to_sym)
   end
 
   # draw breadcrumb for this model
@@ -49,17 +41,14 @@ class CamaleonCms::ApplicationDecorator < Draper::Decorator
     @_deco_locale = locale.to_sym
   end
 
-  # verify admin request to show the first language as the locale
-  # if the request is not for frontend, then this will show current locale visited
+  # get the locale for current decorator
   def get_locale(locale = nil)
-    l = locale || @_deco_locale
-    return l if l.present?
-    (h.cama_is_admin_request? rescue false) ? h.current_site.get_languages.first : l
+    locale || @_deco_locale || (h.cama_get_i18n_frontend rescue nil) || I18n.locale
   end
 
-  # internal helper
+  # return the current locale prefixed to add in frontend routes
   def _calc_locale(_l)
-    _l = (_l || @_deco_locale || I18n.locale).to_s
-    "_#{_l}"# if _l != "en"
+    _l = (_l || @_deco_locale || (h.cama_get_i18n_frontend rescue nil) || I18n.locale).to_s
+    "_#{_l}"
   end
 end

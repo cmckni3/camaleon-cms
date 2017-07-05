@@ -1,12 +1,6 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::HooksHelper
+  include CamaleonCms::PluginsHelper
+  
   # execute hooks for plugin_key with action name hook_key
   # non public method
   # plugin: plugin configuration (config.json)
@@ -21,7 +15,7 @@ module CamaleonCms::HooksHelper
   # hook_key: hook key
   # params: params for hook
   def hooks_run(hook_key, params = nil)
-    PluginRoutes.enabled_apps(current_site, current_theme.slug).each do |plugin|
+    PluginRoutes.enabled_apps(current_site).each do |plugin|
       _do_hook(plugin, hook_key, params)
     end
   end
@@ -39,12 +33,19 @@ module CamaleonCms::HooksHelper
     plugin["hooks"][hook_key].each do |hook|
       next if @_hooks_skip.present? && @_hooks_skip.include?(hook)
       begin
-        send(hook, params) unless params.nil?
-        send(hook) if params.nil?
+        if params.nil?
+          send(hook)
+        else
+          send(hook, params)
+        end
+        Rails.logger.debug "Camaleon CMS - Hook \"#{hook_key}\" executed from dependency #{plugin['key'] rescue ''}".cama_log_style(:light_blue)
       rescue
         plugin_load_helpers(plugin)
-        send(hook, params) unless params.nil?
-        send(hook) if params.nil?
+        if params.nil?
+          send(hook)
+        else
+          send(hook, params)
+        end
       end
     end
   end

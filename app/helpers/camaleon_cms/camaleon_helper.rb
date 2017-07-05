@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::CamaleonHelper
   # create the html link with the url passed
   # verify if current user is logged in, if not, then return nil
@@ -14,7 +6,7 @@ module CamaleonCms::CamaleonHelper
     return '' unless cama_current_user.present?
     return '' unless cama_current_user.admin?
     attrs = {target: "_blank", style: "font-size:11px !important;cursor:pointer;"}.merge(attrs)
-    ActionController::Base.helpers.link_to("&rarr; #{title || ct("edit")}".html_safe, url, attrs)
+    ActionController::Base.helpers.link_to("&rarr; #{title || ct("edit", default: 'Edit')}".html_safe, url, attrs)
   end
 
   # execute controller action and return response
@@ -46,7 +38,7 @@ module CamaleonCms::CamaleonHelper
 
   # check if current request was for admin panel
   def cama_is_admin_request?
-    !(@_admin_menus.nil?)
+    @cama_i18n_frontend.present?
   end
 
   # generate loop categories html sitemap links
@@ -76,10 +68,21 @@ module CamaleonCms::CamaleonHelper
     cache
   end
 
+  # =Deprecated
   def cama_draw_timer
     @_cama_timer ||= Time.current
     puts "***************************************** timer: #{((Time.current - @_cama_timer) * 24 * 60 * 60).to_i}  (#{caller.first})"
     @_cama_timer = Time.current
   end
 
+  # return normal translation with default value with translation of english
+  def cama_t(key, args = {})
+    args[:default] = I18n.t(key, args.dup.merge(locale: :en)) unless args[:default].present?
+    I18n.t(key, args)
+  end
+  
+  # function that converts string into plural format
+  def cama_pluralize_text(text)
+    text.try(:pluralize)
+  end
 end

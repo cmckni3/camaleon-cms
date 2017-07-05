@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Admin::Settings::SitesController < CamaleonCms::Admin::SettingsController
   before_action :set_site, only: [:show, :edit, :update, :destroy]
   before_action :check_shared_status
@@ -29,7 +21,7 @@ class CamaleonCms::Admin::Settings::SitesController < CamaleonCms::Admin::Settin
 
   def update
     tmp = @site.slug
-    if @site.update(params[:site])
+    if @site.update(params.require(:site).permit!)
       save_metas(@site)
       flash[:notice] = t('camaleon_cms.admin.sites.message.updated')
       if @site.id == Cama::Site.main_site.id && tmp != @site.slug
@@ -49,7 +41,7 @@ class CamaleonCms::Admin::Settings::SitesController < CamaleonCms::Admin::Settin
   end
 
   def create
-    site_data = params[:site]
+    site_data = params.require(:site).permit!
     @site = CamaleonCms::Site.new(site_data)
     if @site.save
       save_metas(@site)

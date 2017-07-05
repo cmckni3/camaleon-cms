@@ -1,22 +1,18 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Plugin < CamaleonCms::TermTaxonomy
   # attrs:
   #   term_group => status active (1, nil)
   #   slug => plugin key
   #   name => plugin name
-  default_scope { where(taxonomy: :plugin) }
-  has_many :metas, ->{ where(object_class: 'Plugin')}, :class_name => "CamaleonCms::Meta", foreign_key: :objectid, dependent: :destroy
-  belongs_to :site, :class_name => "CamaleonCms::Site", foreign_key: :parent_id
-  scope :active, ->{ where(term_group: 1) }
-  before_validation :set_default
+
   attr_accessor :error
+
+  has_many :metas, -> { where(object_class: 'Plugin') }, class_name: "CamaleonCms::Meta", foreign_key: :objectid, dependent: :destroy
+  belongs_to :site, class_name: "CamaleonCms::Site", foreign_key: :parent_id
+
+  default_scope { where(taxonomy: :plugin) }
+  scope :active, -> { where(term_group: 1) }
+
+  before_validation :set_default
   before_destroy :destroy_custom_fields
 
   # active the plugin
@@ -75,7 +71,7 @@ class CamaleonCms::Plugin < CamaleonCms::TermTaxonomy
   end
 
   def destroy_custom_fields
-    self.get_field_groups().destroy_all
+    self.get_field_groups.destroy_all
   end
 
 end

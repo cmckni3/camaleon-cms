@@ -10,6 +10,11 @@
   padding: 5px 5px 5px 15px
 }
 
+.ajax-file-upload-filename {
+  overflow: auto;
+  max-width: 100%;
+}
+
 .ajax-file-upload-filesize {
 width: 50px;
 height: auto;
@@ -20,7 +25,7 @@ vertical-align:middle;
 .ajax-file-upload-progress {
 margin: 5px 10px 5px 0px;
 position: relative;
-width: 250px;
+width: 98%;
 border: 1px solid #ddd;
 padding: 1px;
 border-radius: 3px;
@@ -198,12 +203,12 @@ margin: 5px 10px 5px 0px;
           min-height: 100%;
         }
         .label_thumb{
-          display: none;
+          //display: none;
         }
       }
       &:hover{
         .label_thumb{
-          display: block;
+          //display: block;
         }
       }
     }
@@ -221,6 +226,13 @@ margin: 5px 10px 5px 0px;
           font-size: 120px;
         }
       }
+      .p_label {
+        span {
+          overflow: auto;
+          max-width: 100%;
+          display: inline-block;
+        }
+      }
       .p_footer{
         border-top: 1px solid #ccc;
         margin-top: 12px;
@@ -231,6 +243,7 @@ margin: 5px 10px 5px 0px;
       .ajax-upload-dragdrop{
         width: 100% !important;
         min-height: 200px;
+        padding-top: 65px;
         &.state-hover{
           background-color: #ccc;
         }
@@ -239,17 +252,5 @@ margin: 5px 10px 5px 0px;
     .ajax-file-upload-statusbar{
       width: 100% !important;
     }
-  }
-
-  .media_folder_breadcrumb{
-    left: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
-  }
-  .add_folder{
-    position: absolute;
-    right: 17px;
-    top: 5px;
   }
 }

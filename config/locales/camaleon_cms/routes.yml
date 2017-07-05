@@ -1,3 +1,11 @@
+de:
+  routes:
+    group: Gruppe
+    category: Kategorie
+    tag: Tag
+    search: Suche
+    profile: Profil
+
 es:
   routes:
     group: grupo
@@ -14,11 +22,11 @@ pt:
     search: buscar
     profile: perfil
 
-pt_br:
+pt-BR:
   routes:
     group: grupo
     category: categoria
-    tag: etiqueta
+    tag: tag
     search: buscar
     profile: perfil
 
@@ -40,8 +48,16 @@ it:
 
 ru:
   routes:
-    group: group
-    category: category
-    tag: tag
-    search: search
-    profile: profile
+    group: группа
+    category: категория
+    tag: тег
+    search: поиск
+    profile: профиль
+
+zh-CN:
+  routes:
+    group: 群组
+    category: 分类
+    tag: 标签
+    search: 搜索
+    profile: 资料

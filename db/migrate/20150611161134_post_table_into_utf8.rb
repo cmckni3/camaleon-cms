@@ -1,20 +1,29 @@
-class PostTableIntoUtf8 < ActiveRecord::Migration
+class PostTableIntoUtf8 < CamaManager.migration_class
   def change
-    create_table "#{PluginRoutes.static_system_info["db_prefix"]}users" do |t|
-      t.string   "username", index: true
-      t.string   "role", default: "client", index: true
-      t.string   "email", index: true
-      t.string   "slug"
-      t.string   "password_digest"
-      t.string   "auth_token"
-      t.string   "password_reset_token"
-      t.integer  "parent_id"
-      t.datetime "password_reset_sent_at"
-      t.datetime "last_login_at"
+    if table_exists? CamaleonCms::User.table_name
+      add_column(CamaleonCms::User.table_name, :email, :string) unless column_exists?(CamaleonCms::User.table_name, :email)
+      add_column(CamaleonCms::User.table_name, :username, :string) unless column_exists?(CamaleonCms::User.table_name, :username)
+      add_column(CamaleonCms::User.table_name, :role, :string, default: 'client', index: true) unless column_exists?(CamaleonCms::User.table_name, :role)
+      add_column(CamaleonCms::User.table_name, :parent_id, :integer) unless column_exists?(CamaleonCms::User.table_name, :parent_id)
+      add_column(CamaleonCms::User.table_name, :site_id, :integer, index: true, default: -1) unless column_exists?(CamaleonCms::User.table_name, :site_id)
+      add_column(CamaleonCms::User.table_name, :auth_token, :string) unless column_exists?(CamaleonCms::User.table_name, :auth_token)
+    else
+      create_table CamaleonCms::User.table_name do |t|
+        t.string   "username", index: true
+        t.string   "role", default: "client", index: true
+        t.string   "email", index: true
+        t.string   "slug"
+        t.string   "password_digest"
+        t.string   "auth_token"
+        t.string   "password_reset_token"
+        t.integer  "parent_id"
+        t.datetime "password_reset_sent_at"
+        t.datetime "last_login_at"
 
-      # t.integer  "site_id",   default: -1, index: true
-      t.timestamps null: false
-      t.belongs_to :site, index: true, default: -1#, foreign_key: true
+        # t.integer  "site_id",   default: -1, index: true
+        t.timestamps null: false
+        t.belongs_to :site, index: true, default: -1#, foreign_key: true
+      end
     end
 
     create_table "#{PluginRoutes.static_system_info["db_prefix"]}term_taxonomy" do |t|

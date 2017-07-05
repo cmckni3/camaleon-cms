@@ -1,55 +1,54 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module Plugins::FrontCache::FrontCacheHelper
 
   # save as cache all pages configured on settings of this plugin for public users
   def front_cache_front_before_load
-    if current_site.get_option("refresh_cache") # clear cache every restart server
-      front_cache_clean
+    if current_site.get_option("refresh_cache") # clear cache every restart server unless option checked in settings
+      front_cache_clean unless current_site.get_meta("front_cache_elements")[:preserve_cache_on_restart]
       current_site.set_option("refresh_cache", false)
     end
 
     return if signin? || Rails.env == "development" || Rails.env == "test" || !request.get? # avoid cache if current visitor is logged in or development environment
-    # return if signin? # avoid cache if current visitor is logged in or development environment
 
-    cache_key = front_cache_get_key
-    if !flash.keys.present? && front_cache_exist?(cache_key) # recover cache file
-      Rails.logger.info "============================================== readed cache: #{cache_key}"
-      render text: front_cache_get(cache_key).gsub("{{form_authenticity_token}}", form_authenticity_token)
+    cache_key = request.fullpath.parameterize
+    if !flash.keys.present? && front_cache_exist?(cache_key) # recover cache item
+      Rails.logger.info "Camaleon CMS - readed cache: #{front_cache_plugin_get_path(cache_key)}"
+      response.headers['PLUGIN_FRONT_CACHE'] = 'TRUE'
+      args = {data: front_cache_get(cache_key).gsub("{{form_authenticity_token}}", form_authenticity_token)}; hooks_run('front_cache_reading_cache', args)
+      render html: args[:data].html_safe
       return
     end
 
     @caches = current_site.get_meta("front_cache_elements")
     @_plugin_do_cache = false
-    if @caches[:paths].include?(front_request_key) || (params[:action] == "index" && @caches[:home].present?) # cache paths and home page
+    if @caches[:paths].include?(request.original_url) || @caches[:paths].include?(request.path_info) || front_cache_plugin_match_path_patterns?(request.original_url, request.path_info) || (params[:action] == 'index' && params[:controller] == 'camaleon_cms/frontend' && @caches[:home].present?) # cache paths and home page
       @_plugin_do_cache = true
-    elsif params[:action] == "post" && !params[:draft_id].present?
+    elsif params[:action] == "post" && params[:controller] == 'camaleon_cms/frontend' && !params[:draft_id].present?
       begin
         post = current_site.the_posts.find_by_slug(params[:slug]).decorate
-        if post.can_visit?
-          @post = post
-          @post_type = post.the_post_type
-          @_plugin_do_cache = true if can_cache_page?
+        if post.can_visit? && post.visibility != "private"
+          post = post
+          if (@caches[:skip_posts] || []).include?(post.id.to_s)
+            @_plugin_do_cache = false
+          else
+            @_plugin_do_cache = true  if (@caches[:post_types] || []).include?(post.post_type_id.to_s) || (@caches[:posts] || []).include?(post.id.to_s)
+          end
         end
       rescue # skip post not found
       end
     end
+    response.headers['PLUGIN_FRONT_CACHE'] = 'TRUE' if @_plugin_do_cache
   end
 
 
   def front_cache_front_after_load
-    cache_key = front_cache_get_key
+    cache_key = request.fullpath.parameterize
     if @_plugin_do_cache && !flash.keys.present?
-      front_cache_create(cache_key, response.body
-                     .gsub(/csrf-token" content="(.*?)"/, 'csrf-token" content="{{form_authenticity_token}}"')
-                     .gsub(/name="authenticity_token" value="(.*?)"/, 'name="authenticity_token" value="{{form_authenticity_token}}"'))
-      Rails.logger.info "============================================== cache saved as: #{cache_key}"
+      args = {data: response.body
+                        .gsub(/csrf-token" content="(.*?)"/, 'csrf-token" content="{{form_authenticity_token}}"')
+                        .gsub(/name="authenticity_token" value="(.*?)"/, 'name="authenticity_token" value="{{form_authenticity_token}}"')}
+      hooks_run('front_cache_writing_cache', args)
+      front_cache_plugin_cache_create(cache_key, args[:data])
+      Rails.logger.info "Camaleon CMS - cache saved as: #{front_cache_plugin_get_path(cache_key)}"
     end
   end
 
@@ -70,35 +69,6 @@ module Plugins::FrontCache::FrontCacheHelper
 
   # cache actions (for logged users)
   def front_cache_on_render(args)
-    return nil
-    return if args[:options].include?(:skip_cache_action) || !signin? # avoid recursive calling
-    if params[:controller] == "frontend"
-      do_cache = false
-      @caches = current_site.get_meta("front_cache_elements")
-      return unless @caches[:cache_login]
-      if @caches[:paths].include?(front_request_key) || (params[:action] == "index" && @caches[:home].present?) # cache paths and home page
-        do_cache = true
-      elsif params[:action] == "post" && !params[:draft_id].present?
-        do_cache = true if can_cache_page?
-      end
-
-      cache_key = front_cache_get_key("___")
-      if do_cache # save or recovery cache
-        if args[:context].controller.page_cache_exist?(cache_key) # recover cache file
-          args[:options][:skip_cache_action] = true
-          args[:options][:text] = File.read(args[:context].controller.page_cache_get(cache_key))
-          args[:options].delete(:file)
-          return
-        end
-        Thread.abort_on_exception=true
-        Thread.new do
-          options = args[:options].dup
-          options[:layout] = false
-          options[:skip_cache_action] = true
-          args[:context].controller.cache_page(args[:context].controller.render_to_string(options), cache_key, false)
-        end
-      end
-    end
   end
 
   # expire cache for a page after comment registered or updated
@@ -117,44 +87,37 @@ module Plugins::FrontCache::FrontCacheHelper
     end
   end
 
-  # clear all frontend cache files
+  # clear all frontend cache items
   def front_cache_clean
-    FileUtils.rm_rf(Rails.root.join("tmp", "cache", "pages", current_site.id.to_s)) # clear site pages cache
+    Rails.cache.clear
   end
 
   private
 
   def front_cache_exist?(key)
-    File.exist?(Rails.root.join("tmp", "cache", "pages", current_site.id.to_s, "#{key}.html").to_s)
+    !(Rails.cache.read(key).nil?)
   end
 
   def front_cache_get(key)
-    File.read(Rails.root.join("tmp", "cache", "pages", current_site.id.to_s, "#{key}.html").to_s)
+    Rails.cache.read(key)
   end
 
-  def front_cache_destroy(key)
-    FileUtils.rm_f(Rails.root.join("tmp", "cache", "pages", current_site.id.to_s, "#{key}.html").to_s) # clear site pages cache
+  def front_cache_plugin_cache_create(key, content)
+    Rails.cache.write(front_cache_plugin_get_path(key), content)
   end
 
-  def front_cache_create(key, content)
-    dir = Rails.root.join("tmp", "cache", "pages", current_site.id.to_s).to_s
-    FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
-    path = File.join(dir, "#{key}.html").to_s
-    File.open(path, 'wb'){ |fo| fo.write(content) }
-    content
+  # return the physical path of cache directory
+  # key: (string, optional) the key of the cached page
+  def front_cache_plugin_get_path(key = nil)
+    unless key.nil?
+      "pages/#{current_site.id.to_s}/#{key}"
+    else
+      "pages/#{current_site.id.to_s}"
+    end
+
   end
 
-  def front_cache_get_key(prefix = "")
-    request.fullpath.parameterize
+  def front_cache_plugin_match_path_patterns?(key, key2)
+    @caches[:paths].any?{|path_pattern| key =~ Regexp.new(path_pattern) || key2 =~ Regexp.new(path_pattern) }
   end
-
-  # check if current post can be cached (skip private pages)
-  def can_cache_page?
-    !@caches[:skip_posts].include?(@post.id.to_s) && (@post.can_visit? && @post.visibility != "private") && (@caches[:post_types].include?(@post_type.id.to_s) || @caches[:posts].include?(@post.id.to_s)) rescue false
-  end
-
-  def front_request_key
-    request.path_info.split("?").first
-  end
-
 end

@@ -1,27 +1,25 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
+  alias_attribute :site_id, :parent_id
   default_scope { where(taxonomy: :post_type) }
-  has_many :metas, ->{ where(object_class: 'PostType')}, :class_name => "CamaleonCms::Meta", foreign_key: :objectid, dependent: :destroy
-  has_many :categories, :class_name => "CamaleonCms::Category", foreign_key: :parent_id, dependent: :destroy
-  has_many :post_tags, :class_name => "CamaleonCms::PostTag", foreign_key: :parent_id, dependent: :destroy
-  has_many :posts, class_name: "CamaleonCms::Post", foreign_key: :taxonomy_id, dependent: :destroy
-  has_many :posts_draft, class_name: "CamaleonCms::Post", foreign_key: :taxonomy_id, dependent: :destroy, source: :drafts
+  has_many :metas, ->{ where(object_class: 'PostType')}, :class_name => "CamaleonCms::Meta", foreign_key: :objectid, dependent: :delete_all
+  has_many :categories, :class_name => "CamaleonCms::Category", foreign_key: :parent_id, dependent: :destroy, inverse_of: :post_type_parent
+  has_many :post_tags, :class_name => "CamaleonCms::PostTag", foreign_key: :parent_id, dependent: :destroy, inverse_of: :post_type
+  has_many :posts, class_name: "CamaleonCms::Post", foreign_key: :taxonomy_id, dependent: :destroy, inverse_of: :post_type
+  has_many :comments, through: :posts
+  has_many :posts_through_categories, foreign_key: :objectid, through: :term_relationships, :source => :objects
+  has_many :posts_draft, class_name: "CamaleonCms::Post", foreign_key: :taxonomy_id, dependent: :destroy, source: :drafts, inverse_of: :post_type
   has_many :field_group_taxonomy, -> {where("object_class LIKE ?","PostType_%")}, :class_name => "CamaleonCms::CustomField", foreign_key: :objectid, dependent: :destroy
 
-  belongs_to :owner, class_name: "CamaleonCms::User", foreign_key: :user_id
+  belongs_to :owner, class_name: PluginRoutes.static_system_info['user_model'].presence || 'CamaleonCms::User', foreign_key: :user_id
   belongs_to :site, :class_name => "CamaleonCms::Site", foreign_key: :parent_id
 
   scope :visible_menu, -> {where(term_group: nil)}
   scope :hidden_menu, -> {where(term_group: -1)}
   before_destroy :destroy_field_groups
   after_create :set_default_site_user_roles
+  after_create :refresh_routes
+  after_destroy :refresh_routes
+  after_update :check_refresh_routes
   before_update :default_category
 
   # check if current post type manage categories
@@ -45,6 +43,11 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
     options[:has_tags]
   end
 
+  # check if this post type permit to manage seo attrs in posts
+  def manage_seo?
+    get_option('has_seo', get_option('has_keywords', true))
+  end
+
   # assign settings for this post type
   # default values: {
   #   has_category: false,
@@ -54,7 +57,7 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
   #   has_comments: false,
   #   has_picture: true,
   #   has_template: true,
-  #   has_keywords: true,
+  #   has_seo: true,
   #   not_deleted: false,
   #   has_layout: false,
   #   default_layout: '',
@@ -73,8 +76,7 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
 
   # select full_categories for the post type, include all children categories
   def full_categories
-    s = self.site
-    CamaleonCms::Category.where("term_group = ? or status in (?)", s.id, s.post_types.pluck(:id).to_s)
+    CamaleonCms::Category.where(site_id: site_id, post_type_id: id)
   end
 
   # return default category for this post type
@@ -83,7 +85,7 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
     if manage_categories?
       cat = self.categories.find_by_slug("uncategorized")
       unless cat.present?
-        cat = self.categories.create({name: 'Uncategorized', slug: 'uncategorized', parent: self.id})
+        cat = self.categories.create({name: 'Uncategorized', slug: 'uncategorized', parent_id: self.id})
         cat.set_option("not_deleted", true)
       end
       cat
@@ -103,21 +105,21 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
   #   settings: Hash of post settings, sample => settings:
   #     {has_content: false, has_summary: true, default_layout: 'my_layout', default_template: 'my_template' } (optional, see more in post.set_setting(...))
   #   data_metas: {template: "", layout: ""}
+  # sample: my_posttype.add_post(title: "My Title", post_order: 5, content: 'lorem_ipsum', settings: {default_template: "home/counters", has_content: false, has_seo: false, skip_fields: ["sub_tite", 'banner']}, fields: {pattern: true, bg: 'http://www.reallusion.com/de/images/3dx5/whatsnew/3dx5_features_banner_bg_02.jpg'})
+  #   More samples here: https://gist.github.com/owen2345/eba9691585ed78ad6f7b52e9591357bf
   # return created post if it was created, else return errors
   def add_post(args)
     _fields = args.delete(:fields)
     _settings = args.delete(:settings)
     _summary = args.delete(:summary)
     _order_position = args.delete(:order_position)
-    _categories = args.delete(:categories)
-    _tags = args.delete(:tags)
+    args[:data_categories] = _categories = args.delete(:categories)
+    args[:data_tags] = args.delete(:tags)
     _thumb = args.delete(:thumb)
     p = self.posts.new(args)
     p.slug = self.site.get_valid_post_slug(p.title.parameterize) unless p.slug.present?
     if p.save!
       _settings.each{ |k, v| p.set_setting(k, v) } if _settings.present?
-      p.assign_category(_categories) if _categories.present? && self.manage_categories?
-      p.assign_tags(_tags) if _tags.present? && self.manage_tags?
       p.set_position(_order_position) if _order_position.present?
       p.set_summary(_summary) if _summary.present?
       p.set_thumb(_thumb) if _thumb.present?
@@ -159,19 +161,29 @@ class CamaleonCms::PostType < CamaleonCms::TermTaxonomy
   # assign default roles for this post type
   # define default settings for this post type
   def set_default_site_user_roles
-    self.set_multiple_options({has_category: false, has_tags: false, has_summary: true, has_content: true, has_comments: false, has_picture: true, has_template: true, has_keywords: true, not_deleted: false, has_layout: false, default_layout: ""}.merge((data_options||{}).to_sym))
+    self.set_multiple_options({has_category: false, has_tags: false, has_summary: true, has_content: true, has_comments: false, has_picture: true, has_template: true, has_seo: true, not_deleted: false, has_layout: false, default_layout: ""}.merge(PluginRoutes.fixActionParameter(data_options||{}).to_sym))
     self.site.set_default_user_roles(self)
     default_category
   end
 
   # destroy all custom field groups assigned to this post type
   def destroy_field_groups
-    # TODO: CHANGE TO SUPPORT DESTROY FOR SITE DESTROY
-    # if self.slug == "post" || self.slug == "page"
-    #   errors.add(:base, "This post type can not be deleted.")
-    #   return false
-    # end
+    unless self.destroyed_by_association.present?
+      if self.slug == "post" || self.slug == "page"
+        errors.add(:base, "This post type can not be deleted.")
+        return false
+      end
+    end
     self.get_field_groups.destroy_all
   end
 
+  # reload routes to enable this post type url, like: http://localhost/my-slug
+  def refresh_routes
+    PluginRoutes.reload unless self.destroyed_by_association.present?
+  end
+
+  # check if slug was changed
+  def check_refresh_routes
+    refresh_routes if cama_attr_changed?(:slug)
+  end
 end

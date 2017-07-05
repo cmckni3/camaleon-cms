@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::AdminController < CamaleonCms::CamaleonController
   rescue_from CanCan::AccessDenied do |exception|
     flash[:error] = "Error: #{exception.message}"
@@ -52,12 +44,14 @@ class CamaleonCms::AdminController < CamaleonCms::CamaleonController
     params[:kind] = "content" unless params[:kind].present?
     params[:q] = (params[:q] || '').downcase
     case params[:kind]
+      when "post_type"
+        @items = current_site.post_types.where("LOWER(#{Cama::PostType.table_name}.name) LIKE ? OR LOWER(#{Cama::PostType.table_name}.slug) LIKE ? OR LOWER(#{Cama::PostType.table_name}.description) LIKE ?", "%#{params[:q]}%", "%#{params[:q]}%", "%#{params[:q]}%")
       when "category"
-        @items = current_site.full_categories.where("LOWER(#{CamaleonCms::Category.table_name}.name) LIKE ?", "%#{params[:q]}%")
+        @items = current_site.full_categories.where("LOWER(#{Cama::Category.table_name}.name) LIKE ? OR LOWER(#{Cama::Category.table_name}.slug) LIKE ? OR LOWER(#{Cama::Category.table_name}.description) LIKE ?", "%#{params[:q]}%", "%#{params[:q]}%", "%#{params[:q]}%")
       when "tag"
-        @items = current_site.post_tags.where("LOWER(#{CamaleonCms::PostTag.table_name}.name) LIKE ?", "%#{params[:q]}%")
+        @items = current_site.post_tags.where("LOWER(#{Cama::PostTag.table_name}.name) LIKE ? OR LOWER(#{Cama::PostTag.table_name}.slug) LIKE ? OR LOWER(#{Cama::PostTag.table_name}.description) LIKE ?", "%#{params[:q]}%", "%#{params[:q]}%", "%#{params[:q]}%")
       else
-        @items = current_site.posts.where("LOWER(#{CamaleonCms::Post.table_name}.title) LIKE ?", "%#{params[:q]}%")
+        @items = current_site.posts.where("LOWER(#{Cama::Post.table_name}.title) LIKE ? OR LOWER(#{Cama::Post.table_name}.slug) LIKE ? OR LOWER(#{Cama::Post.table_name}.content_filtered) LIKE ?", "%#{params[:q]}%", "%#{params[:q]}%", "%#{params[:q]}%")
     end
     @items = @items.paginate(:page => params[:page], :per_page => current_site.admin_per_page)
   end
@@ -69,7 +63,7 @@ class CamaleonCms::AdminController < CamaleonCms::CamaleonController
     @_admin_menus = {}
     @_admin_breadcrumb = []
     @_extra_models_for_fields = []
-    # self.append_view_path(Rails.root.join("app", "apps"))
+    @cama_i18n_frontend = current_site.get_languages.first
   end
 
   # trigger hooks for admin panel before admin load

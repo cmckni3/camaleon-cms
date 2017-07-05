@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 #encoding: utf-8
 module CamaleonCms::HtmlHelper
   def cama_html_helpers_init
@@ -25,7 +17,7 @@ module CamaleonCms::HtmlHelper
     @_cama_assets_libraries[key][:js] += assets[:js] if assets[:js].present?
   end
 
-  # enable to load admin or registered libraries (colorpicker, datepicker, form_builder, tinymce, form_ajax, cropper)
+  # enable to load admin or registered libraries (colorpicker, datepicker, tinymce, form_ajax, cropper)
   # sample: add_asset_library("datepicker", "colorpicker")
   # This will add this assets library in the admin head or in a custom place by calling: cama_draw_custom_assets()
   def cama_load_libraries(*keys)
@@ -43,7 +35,7 @@ module CamaleonCms::HtmlHelper
   # sample: (update existent library)
   #   append_asset_libraries({"colorpicker"=>{js: [plugin_asset("js/my_custom_js")] } })
   # return nil
-  def cama_load_custom_assets(libraries)
+  def append_asset_libraries(libraries)
     libraries.each do |key, library|
       if @_assets_libraries.include?(key)
         @_assets_libraries[key.to_sym] = @_assets_libraries[key.to_sym].merge(library)
@@ -52,8 +44,7 @@ module CamaleonCms::HtmlHelper
       end
     end
   end
-
-  alias_method :append_asset_libraries, :cama_load_custom_assets
+  alias_method :cama_load_custom_assets, :append_asset_libraries
 
   # add asset content into custom assets
   # content may be: <script>alert()</script>
@@ -84,14 +75,18 @@ module CamaleonCms::HtmlHelper
     @_assets_libraries.each do |key, assets|
       libs += assets[:css] if assets[:css].present?
     end
-    css = stylesheet_link_tag *libs.uniq, media: "all"
+    stylesheets = libs.uniq
+    css = stylesheet_link_tag *stylesheets, media: "all"
 
     libs = []
     @_assets_libraries.each do |key, assets|
       libs += assets[:js] if assets[:js].present?
     end
-    js = javascript_include_tag *libs.uniq
-    css + "\n" + js + "\n" + @_assets_content.join("").html_safe
+    javascripts = libs.uniq
+    js = javascript_include_tag *javascripts
+
+    args = {stylesheets: stylesheets, javascripts: javascripts, js_html: js, css_html: css}; hooks_run('draw_custom_assets', args)
+    args[:css_html] + "\n" + args[:js_html] + "\n" + @_assets_content.join("").html_safe
   end
 
   # return category tree for category dropdown
@@ -122,13 +117,12 @@ module CamaleonCms::HtmlHelper
     libs[:datepicker] = {js: []}
     libs[:datetimepicker] = {js: [], css: []}
     libs[:tinymce] = {js: ['camaleon_cms/admin/tinymce/tinymce.min', "camaleon_cms/admin/tinymce/plugins/filemanager/plugin.min"], css: ["camaleon_cms/admin/tinymce/skins/lightgray/content.min"]}
-    libs[:form_builder] = {css:['camaleon_cms/admin/form-builder/formbuilder'],js: ['camaleon_cms/admin/form-builder/vendor', 'camaleon_cms/admin/form-builder/formbuilder' ]}
     libs[:form_ajax] = {js: ['camaleon_cms/admin/form/jquery.form']}
-    libs[:cropper] = {js: ['camaleon_cms/admin/form/cropper.min'], css: ['camaleon_cms/admin/cropper/cropper.min']}
+    libs[:cropper] = {} # loaded by default
     libs[:post] = {js: ["camaleon_cms/admin/jquery.tagsinput.min", 'camaleon_cms/admin/post'], css: ["camaleon_cms/admin/jquery.tagsinput"]}
     libs[:multiselect] = {js: ['camaleon_cms/admin/bootstrap-select.js']}
     libs[:validate] = {js: ['camaleon_cms/admin/jquery.validate']}
-    libs[:nav_menu] = {css: ['camaleon_cms/admin/nestable/jquery.nestable', "camaleon_cms/admin/nav-menu"], js: ["camaleon_cms/admin/jquery.nestable", 'camaleon_cms/admin/nav-menu']}
+    libs[:nav_menu] = {css: ['camaleon_cms/admin/nestable/jquery.nestable'], js: ["camaleon_cms/admin/jquery.nestable", 'camaleon_cms/admin/nav_menu']}
     libs[:admin_intro] = {js: ['camaleon_cms/admin/introjs/intro.min'], css: ["camaleon_cms/admin/introjs/introjs.min"]}
     @_cama_assets_libraries = libs
   end

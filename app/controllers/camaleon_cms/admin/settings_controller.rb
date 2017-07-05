@@ -1,13 +1,6 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Admin::SettingsController < CamaleonCms::AdminController
-  before_action :validate_role
+  before_action :validate_role, except: [:theme, :save_theme]
+  before_action :validate_role_theme, only: [:theme, :save_theme]
   add_breadcrumb I18n.t("camaleon_cms.admin.sidebar.settings")
 
   def index
@@ -15,21 +8,22 @@ class CamaleonCms::Admin::SettingsController < CamaleonCms::AdminController
   end
 
   def site
+    return redirect_to cama_admin_settings_theme_path if params[:tab].present? && params[:tab] == 'theme'
     add_breadcrumb I18n.t("camaleon_cms.admin.sidebar.general_site")
     @site = current_site
   end
 
   def site_saved
     @site = current_site
-    if @site.update(params[:site])
-      @site.set_options_from_form(params[:meta]) if params[:meta].present?
-      @site.set_multiple_options(params[:options])
+    cache_slug = @site.slug
+    if @site.update(params.require(:site).permit!)
+      @site.set_options(params[:options]) if params[:options].present?
+      @site.set_metas(params[:metas]) if params[:metas].present?
       @site.set_field_values(params[:field_options])
-      theme = @site.get_theme.decorate
-      theme.set_field_values(params[:theme_fields]) if params[:theme_fields].present?
       flash[:notice] = t('camaleon_cms.admin.settings.message.site_updated')
-      hook_run(theme.settings, "on_theme_settings", theme)
-      redirect_to action: :site
+      args = {action: :site}
+      args[:host], args[:port] = @site.get_domain.to_s.split(':') if cache_slug != @site.slug
+      redirect_to(args)
     else
       render 'site'
     end
@@ -56,9 +50,37 @@ class CamaleonCms::Admin::SettingsController < CamaleonCms::AdminController
     redirect_to action: :languages
   end
 
+  def theme
+    add_breadcrumb I18n.t("camaleon_cms.admin.settings.theme_setting", default: 'Theme Settings')
+  end
+
+  def save_theme
+    current_theme.set_field_values(params[:theme_fields]) if params[:theme_fields].present?
+    current_theme.set_options(params[:theme_option]) if params[:theme_option].present?
+    current_theme.set_metas(params[:theme_meta]) if params[:theme_meta].present?
+    current_theme.set_field_values(params[:field_options])
+    hook_run(current_theme.settings, "on_theme_settings", current_theme)# permit to save extra/custom values by this hook
+    flash[:notice] = t('camaleon_cms.admin.message.updated_success', default: 'Theme updated successfully')
+    redirect_to action: :theme
+  end
+
+  # send email test
+  def test_email
+    begin
+      CamaleonCms::HtmlMailer.sender(params[:email], 'Test', {content: 'Test content'}).deliver_now
+      head :ok
+    rescue => e
+      render inline: e.message, status: 502
+    end
+  end
+
   private
 
   def validate_role
-    authorize! :manager, :settings
+    authorize! :manage, :settings
+  end
+
+  def validate_role_theme
+    authorize! :manage, :theme_settings
   end
 end

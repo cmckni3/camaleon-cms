@@ -1,5 +1,6 @@
 en:
   camaleon_cms:
+    see_intro: "See intro"
     welcome_message: "Welcome to Camaleon CMS"
     page_not_exist: "<h1>ooops...</h1><h5>The page you're looking for does not exist.</h5>"
     page_error_500: "<h1>ooops...</h1><h5>Error 500 Internal Server Error. Please contact to the administrator.</h5>"
@@ -76,14 +77,14 @@ en:
           approved: 'Approved'
           change_status: 'The response status has been changed to '
           created: 'The comment has been created.'
-          destroy: 'The answers has been removed.'
-          destroy_comments: 'The comments has been removed.'
+          destroy: 'The answers have been removed.'
+          destroy_comments: 'The comments have been removed.'
           deleted: 'The answers has been removed.'
           error: 'Not found comment'
           pending: 'Pending'
           responses: 'The reply has been created.'
           spam: 'Spam'
-          there_no_comments: 'There is no comments.'
+          there_no_comments: 'There are no comments.'
           updated: 'The comment has been updated.'
 
         tooltip:
@@ -106,6 +107,13 @@ en:
           email: 'Email'
           file: 'File'
           image: 'Image'
+          image_dimension: 'Dimension'
+          image_dimension_descr: 'Crop the image with indicated dimension (widthxheight), sample: 400x300 <br>Possible values: 400x300 | 400x | x300 | ?400x?500 | ?1400x (? => maximum, empty => auto)'
+          image_versions: 'Versions'
+          image_versions_descr: "Create addtional multiple versions of the image uploaded, sample: 300x300,505x350 ==> Will create two extra images with these dimensions"
+          image_thumb: 'Thumbnail'
+          required_image_thumb: 'Is Required Thumbnail?'
+          image_thumb_descr: "Define the dimension for the thumbnail, sample: 100x100. Default: %{d}"
           numeric: 'Numeric'
           phone: 'Phone'
           users: 'Users'
@@ -172,8 +180,17 @@ en:
         home: "Home"
         info: "Information"
         external: "Upload From URL"
+        folder_name: 'Folder Name'
+        folder_file_name: 'Folder or File Name'
+        reload: 'Reload'
+        clear_cache: 'Clear Cache'
+        name_required: 'File name is required'
       menus:
         link_url: 'Link URL'
+        target: 'Target'
+        targets:
+          blank: 'Blank'
+          parent: 'Parent'
         message:
           created: 'The nav menu has been created.'
           deleted: 'The nav menu has been delete.'
@@ -198,7 +215,7 @@ en:
         remove_items_submenu: 'Really remove this item and its sub menu items?'
         you_must_upload_image: 'You must upload an image'
         you_must_upload_video: 'You must upload an video'
-        so_their_data_has_not_been_saved: 'so their data has not been saved'
+        so_their_data_has_not_been_saved: 'So their data has not been saved'
         no_response_fields: 'No response fields '
         quick_info: 'Some quick info about this user'
         was_inactivated: 'was inactivated.'
@@ -223,7 +240,7 @@ en:
         edit: 'Edit'
         add: 'Add'
         list: 'List'
-        list_of: 'List of'
+        list_of: 'List of %{post_type}'
         new_site: 'New Site'
         edit_site: 'Edit Site'
         update: 'Update'
@@ -246,6 +263,8 @@ en:
           recover: 'Recover...'
         permalink: 'Permalink'
       post_type:
+        route_format: 'Contents Route Format'
+        icons_url_desc: 'Please enter any icon name from here: '
         all: 'All Items'
         add: 'Add'
         add_category: 'Add Category'
@@ -314,7 +333,7 @@ en:
         activate_login_social_networks: 'Activate Login Social Networks'
         add_field_group: 'Add Field Group'
         admin_language: 'Admin language'
-        allow_user_registration: 'Allow user registration'
+        allow_user_registration: 'Allow user registration?'
         available_fields: 'Available fields'
         available_languages: 'Available languages'
         categories_in: 'Categories in'
@@ -335,7 +354,7 @@ en:
         login_twitter: 'Twitter'
         login_facebook: 'Facebook'
         login_google: 'Google+'
-        email_enabled: "Use this settings to send emails"
+        email_enabled: "Use these settings to send emails"
         email_server: "Email Server"
         email_port: "Email Port"
         email_domain: "Email Domain"
@@ -352,6 +371,7 @@ en:
         filesystem_s3_secret_key: "AWS S3 Secret Key"
         filesystem_s3_bucket_name: "AWS S3 Bucket name"
         filesystem_s3_endpoint: "AWS S3 Bucket endpoint"
+        send_test_email: 'Send Test Email'
         filesystem_region: "AWS S3 Region"
         filesystem_cdn: "CDN url"
         security:
@@ -456,8 +476,6 @@ en:
         google_plus: 'Google plus'
         hide: 'Hide'
         home_page: 'Home Page'
-        has_keywords: 'Has Keywords'
-        manage_keywords: 'Manage Keywords'
         id: 'ID'
         images: 'Images'
         import: 'Import'
@@ -474,6 +492,7 @@ en:
         manage_category: 'Manage Category'
         manage_content: 'Manage Content'
         manage_picture: 'Manage Picture'
+        manage_seo: 'Manage Seo'
         manage_summary: 'Manage Summary'
         manage_tags: 'Manage Tags'
         manage_template: 'Manage Template'
@@ -539,6 +558,7 @@ en:
         message:
           updated: 'Theme updated'
       users:
+        impersonate: 'Impersonate'
         all_users: 'All Users'
         add_user: 'Add User'
         add_user_role: 'Add User Role'
@@ -644,18 +664,18 @@ en:
         profile: "In this place you can see your profile options."
         content: "This block contains all content groups of your site. Each content can have different structure configured in settings => Content Groups"
         #dashboard: "In this section you can see "
-        media: "This section manage your all your public media files"
-        comments: "This section manage all the comments of your contents"
-        appearance: "Manage all the information related to Public Interface"
-        themes: "In this section you can choose your preferred theme (Public Interface)"
-        widgets: "This module permit you to manage your widgets and paste the code in any content."
-        menus: "<img style=\"max-width: 100%;\" src=\"%{image}\" /> This module permit you to control your menus for Public Interface in multiple levels."
+        media: "This section manages all your public media files."
+        comments: "This section manages all the comments of your contents."
+        appearance: "Manage all the information related to Public Interface."
+        themes: "In this section you can choose your preferred theme (Public Interface)."
+        widgets: "This module permits you to manage your widgets and paste the code in any content."
+        menus: "<img style=\"max-width: 100%;\" src=\"%{image}\" /> This module permits you to control your menus for Public Interface in multiple levels."
         plugins: "In this section you can see all plugins (custom applications to extend your site functionality)."
-        users: "Permit you to manage all users of the site. Also you can manage the roles for the users."
-        settings: "In this section you can find all site configurations"
+        users: "Permits you to manage all users of the site. Also you can manage the roles for the users."
+        settings: "In this section you can find all site configurations."
         gral_site: "This is a section where you can configure all settings of the site and current theme"
-        sites: "This module permit you to manage your sub sites, i.e. you can create unlimited sites like this (This is visible only for main site). Check /config/system.json to customize settings."
-        custom_fields: "This section permit you to extend easily your contents, themes,... by custom fields."
+        sites: "This module permits you to manage your sub sites, i.e. you can create unlimited sites like this (This is visible only for main site). Check /config/system.json to customize settings."
+        custom_fields: "This section permits you to extend easily your contents, themes,... by custom fields."
         post_type: "In this module you can manage your content groups without programing anything."
-        languages: "This module permit you to manage all languages for your site. Also you can configure the language for your admin panel."
+        languages: "This module permits you to manage all languages for your site. Also you can configure the language for your admin panel."
         shortcodes: "In this section you can see all available shortcodes to use in your contents."

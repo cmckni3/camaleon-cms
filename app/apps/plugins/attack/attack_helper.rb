@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module Plugins::Attack::AttackHelper
 
   # here all actions on plugin destroying
@@ -34,6 +26,9 @@ module Plugins::Attack::AttackHelper
         t.datetime "created_at"
       end
     end
+    CamaleonCms::Site.class_eval do
+      has_many :attack, class_name: "Plugins::Attack::Models::Attack"
+    end
   end
 
   # here all actions on going to inactive
@@ -45,7 +40,7 @@ module Plugins::Attack::AttackHelper
   def attack_app_before_load()
     cache_ban = Rails.cache.read(cama_get_session_id)
     if cache_ban.present? # render banned message if it was banned
-      render text: cache_ban, layout: false
+      render html: cache_ban.html_safe, layout: false
       return
     end
 
@@ -72,7 +67,7 @@ module Plugins::Attack::AttackHelper
       if r.count > config[:post][:max].to_i
         Rails.cache.write(cama_get_session_id, config[:msg], expires_in: config[:ban].to_i.minutes)
         # send an email to administrator with request info (ip, browser, if logged then send user info
-        render text: config[:msg]
+        render html: config[:msg].html_safe
         return
       end
 
@@ -81,7 +76,7 @@ module Plugins::Attack::AttackHelper
       r = q.where(created_at: config[:get][:sec].to_i.seconds.ago..Time.now)
       if r.count > config[:get][:max].to_i
         Rails.cache.write(cama_get_session_id, config[:msg], expires_in: config[:ban].to_i.minutes)
-        render text: config[:msg]
+        render html: config[:msg].html_safe
         return
       end
     end

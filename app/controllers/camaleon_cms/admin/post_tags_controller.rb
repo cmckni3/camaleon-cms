@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Admin::PostTagsController < CamaleonCms::AdminController
   add_breadcrumb I18n.t("camaleon_cms.admin.sidebar.contents")
   before_action :set_post_type
@@ -13,7 +5,6 @@ class CamaleonCms::Admin::PostTagsController < CamaleonCms::AdminController
 
   def index
     @post_tags = @post_type.post_tags
-
     @post_tags = @post_tags.paginate(:page => params[:page], :per_page => current_site.admin_per_page)
   end
 
@@ -28,8 +19,8 @@ class CamaleonCms::Admin::PostTagsController < CamaleonCms::AdminController
 
   # save changes of a post tag
   def update
-    if @post_tag.update(params[:post_tag])
-      @post_tag.set_options_from_form(params[:meta]) if params[:meta].present?
+    if @post_tag.update(params.require(:post_tag).permit!)
+      @post_tag.set_options(params[:meta]) if params[:meta].present?
       @post_tag.set_field_values(params[:field_options])
       flash[:notice] = t('camaleon_cms.admin.post_type.message.updated')
       redirect_to action: :index
@@ -40,10 +31,9 @@ class CamaleonCms::Admin::PostTagsController < CamaleonCms::AdminController
 
   # render post tag create form
   def create
-    data_term = params[:post_tag]
-    @post_tag = @post_type.post_tags.new(data_term)
+    @post_tag = @post_type.post_tags.new(params.require(:post_tag).permit!)
     if @post_tag.save
-      @post_tag.set_options_from_form(params[:meta]) if params[:meta].present?
+      @post_tag.set_options(params[:meta]) if params[:meta].present?
       @post_tag.set_field_values(params[:field_options])
       flash[:notice] = t('camaleon_cms.admin.post_type.message.created')
       redirect_to action: :index

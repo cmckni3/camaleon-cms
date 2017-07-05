@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::Admin::UserRolesController < CamaleonCms::AdminController
   before_action :validate_role
   add_breadcrumb I18n.t("camaleon_cms.admin.sidebar.users"), :cama_admin_users_url
@@ -27,7 +19,7 @@ class CamaleonCms::Admin::UserRolesController < CamaleonCms::AdminController
   end
 
   def create
-    user_role_data = params[:user_role]
+    user_role_data = params.require(:user_role).permit!
     @user_role = current_site.user_roles.new(user_role_data)
     if @user_role.save
       @user_role.set_meta("_post_type_#{current_site.id.to_s}", defined?(params[:rol_values][:post_type]) ? params[:rol_values][:post_type] : {})
@@ -45,9 +37,11 @@ class CamaleonCms::Admin::UserRolesController < CamaleonCms::AdminController
   end
 
   def update
-    if @user_role.editable? && @user_role.update(params[:user_role])
-      @user_role.set_meta("_post_type_#{current_site.id.to_s}", defined?(params[:rol_values][:post_type]) ? params[:rol_values][:post_type] : {})
-      @user_role.set_meta("_manager_#{current_site.id.to_s}", defined?(params[:rol_values][:post_type]) ? params[:rol_values][:manager] : {})
+    if @user_role.update(params.require(:user_role).permit!)
+      if @user_role.editable?
+        @user_role.set_meta("_post_type_#{current_site.id.to_s}", defined?(params[:rol_values][:post_type]) ? params[:rol_values][:post_type] : {})
+        @user_role.set_meta("_manager_#{current_site.id.to_s}", defined?(params[:rol_values][:post_type]) ? params[:rol_values][:manager] : {})
+      end
       flash[:notice] = t('camaleon_cms.admin.users.message.rol_updated')
       redirect_to action: :edit, id: @user_role.id
     else
@@ -56,19 +50,22 @@ class CamaleonCms::Admin::UserRolesController < CamaleonCms::AdminController
   end
 
   def destroy
-    @user_role.destroy
-    flash[:notice] = t('camaleon_cms.admin.users.message.rol_deleted')
+    if @user_role.editable? && @user_role.destroy
+      flash[:notice] = t('camaleon_cms.admin.users.message.rol_deleted')
+    else
+      flash[:error] = t('camaleon_cms.admin.users.message.role_can_not_be_deleted', default: 'This role can not be deleted')
+    end
     redirect_to action: :index
   end
 
   private
   def validate_role
-    authorize! :manager, :users
+    authorize! :manage, :users
   end
 
   def set_user_roles
     begin
-      @user_role = current_site.user_roles.find(params[:id])
+      @user_role = current_site.user_roles.find(params[:id]).decorate
     rescue
       flash[:error] = t('camaleon_cms.admin.users.message.rol_error')
       redirect_to action: :index

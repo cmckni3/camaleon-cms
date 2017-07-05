@@ -1,16 +1,8 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::UserRole < CamaleonCms::TermTaxonomy
+  after_destroy :set_users_as_cilent
+
   default_scope { where(taxonomy: :user_roles) }
   has_many :metas, ->{ where(object_class: 'UserRole')}, :class_name => "CamaleonCms::Meta", foreign_key: :objectid, dependent: :destroy
-  has_many :user_relationships, :class_name => "CamaleonCms::UserRelationship", :foreign_key => :term_taxonomy_id, dependent: :destroy
-  has_many :users, through: :user_relationships, :source => :user
   belongs_to :site, :class_name => "CamaleonCms::Site", foreign_key: :parent_id
 
   def roles_post_type
@@ -129,8 +121,18 @@ class CamaleonCms::UserRole < CamaleonCms::TermTaxonomy
               key: 'settings',
               label: "#{I18n.t('camaleon_cms.admin.sidebar.settings')}",
               description: "#{I18n.t('camaleon_cms.admin.users.tool_tip.settings')}"
+          },
+          {
+              key: 'theme_settings',
+              label: "#{I18n.t('camaleon_cms.admin.settings.theme_setting', default: 'Theme Settings')}",
+              description: "#{I18n.t('camaleon_cms.admin.users.tool_tip.themes')}"
           }
       ]
   }
 
+  private
+
+  def set_users_as_cilent
+    site.users.where(role: slug).update_all(role: 'client')
+  end
 end

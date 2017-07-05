@@ -1,6 +1,6 @@
 var App_post = {};
 var $form = null;
-function init_post(obj) {
+function cama_init_post(obj) {
     $form = $('#form-post');
 
     if (obj.recover_draft == "true") {
@@ -53,7 +53,7 @@ function init_post(obj) {
 
     }
     if(window["post_editor_draft_intrval"]) clearInterval(window["post_editor_draft_intrval"]);
-    window["post_editor_draft_intrval"] = setInterval(function () { if($form.length == 0){ clearInterval(window["post_editor_draft_intrval"]); } else{ App_post.save_draft_ajax(null, true); } }, 3 * 60 * 1000);
+    window["post_editor_draft_intrval"] = setInterval(function () { if($form.length == 0){ clearInterval(window["post_editor_draft_intrval"]); } else{ App_post.save_draft_ajax(null, true); } }, 1 * 60 * 1000);
     window.save_draft = App_post.save_draft_ajax;
 
     if($form.find(".title-post" + class_translate).size() == 0) class_translate = '';
@@ -140,7 +140,7 @@ function init_post(obj) {
                 var $btn = $(this);
                 var $btn_edit = $('<a href="#" class="btn btn-default btn-xs btn-edit">' + I18n("button.accept") + '</a> &nbsp; <a href="#"  class="btn-cancel">' + I18n("button.cancel") + '</a>');
                 var $label = $link.find('.sl-url');
-                var $input = $("<input type='text' />");
+                var $input = $("<input type='text' />").keyup(function(e){ if(e.keyCode == 13){ $btn_edit.filter('.btn-edit').click(); return false; } });
                 $label.hide().after($input);
                 $btn.hide().after($btn_edit);
                 $input.val($label.text());
@@ -176,7 +176,6 @@ function init_post(obj) {
     tinymce.init(cama_get_tinymce_settings({
         selector: '.tinymce_textarea:not(.translated-item)',
         height: '480px',
-        onPostRender: onEditorPostRender,
         base_path: obj.base_path
     }));
 
@@ -199,7 +198,7 @@ function init_post(obj) {
                 return;
             }
             if ($(window).scrollTop() >= fixed_offset_top + 10) {
-                fixed_position.css({position: "fixed", width: "279px", top: 0, "z-index": 4});
+                fixed_position.css({position: "fixed", width: panel_scroll.width()+'px', top: 0, "z-index": 4});
                 panel_scroll.css("padding-top", fixed_position.height() + 20)
             } else {
                 fixed_position.css({position: "", width: "auto"});
@@ -243,7 +242,7 @@ function init_post(obj) {
             if ($(this).valid()) $form.data("submitted", 1);
         });
         window.onbeforeunload = function () {
-            if ($form.data("submitted"))
+            if ($form.data("submitted") || $('#form-post').length == 0)
                 return;
             if ($form.data("hash") != get_hash_form()) {
                 return "You sure to leave the page without saving changes?";
@@ -266,16 +265,7 @@ function init_post(obj) {
         /*********** end *************/
     }
     setTimeout(form_later_actions, 1000);
-
-    // wait for render editors
-    var wait_render;
-
-    function onEditorPostRender(editor) {
-        if (wait_render) clearTimeout(wait_render);
-        wait_render = setTimeout(function () {
-            $form.data("hash", get_hash_form());
-        }, 1000);
-    }
+    setTimeout(function(){ $form.data("hash", get_hash_form()); }, 2000);
 
     function get_hash_form() {
         for (editor in tinymce.editors) {
@@ -292,9 +282,9 @@ function init_post(obj) {
     }
 }
 
-// thumbnail updloader
-function upload_feature_image() {
-    $.fn.upload_filemanager({
+// thumbnail uploader
+function cama_upload_feature_image(data) {
+    $.fn.upload_filemanager($.extend({
         formats: "image",
         selected: function (image) {
             var image_url = image.url;
@@ -303,5 +293,5 @@ function upload_feature_image() {
             $('#feature-image .meta strong').html(image.name);
             $('#feature-image').show();
         }
-    });
+    }, data));
 }

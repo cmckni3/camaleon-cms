@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::UniqValidator < ActiveModel::Validator
   def validate(record)
     unless record.skip_slug_validation?
@@ -17,9 +9,9 @@ class CamaleonCms::TermTaxonomy < ActiveRecord::Base
   include CamaleonCms::Metas
   include CamaleonCms::CustomFieldsRead
   self.table_name = "#{PluginRoutes.static_system_info["db_prefix"]}term_taxonomy"
-  attr_accessible :taxonomy, :description, :parent_id, :count, :name, :slug, :term_group, :status, :term_order, :user_id
-  attr_accessible :data_options
-  attr_accessible :data_metas
+  # attr_accessible :taxonomy, :description, :parent_id, :count, :name, :slug, :term_group, :status, :term_order, :user_id
+  # attr_accessible :data_options
+  # attr_accessible :data_metas
 
   # callbacks
   before_validation :before_validating
@@ -31,9 +23,9 @@ class CamaleonCms::TermTaxonomy < ActiveRecord::Base
 
   # relations
   has_many :term_relationships, :class_name => "CamaleonCms::TermRelationship", :foreign_key => :term_taxonomy_id, dependent: :destroy
-  has_many :posts, foreign_key: :objectid, through: :term_relationships, :source => :objects
+  # has_many :posts, foreign_key: :objectid, through: :term_relationships, :source => :objects
   belongs_to :parent, class_name: "CamaleonCms::TermTaxonomy", foreign_key: :parent_id
-  belongs_to :owner, class_name: "CamaleonCms::User", foreign_key: :user_id
+  belongs_to :owner, class_name: PluginRoutes.static_system_info['user_model'].presence || 'CamaleonCms::User', foreign_key: :user_id
 
   # return all children taxonomy
   # sample: sub categories of a category
@@ -41,19 +33,9 @@ class CamaleonCms::TermTaxonomy < ActiveRecord::Base
     CamaleonCms::TermTaxonomy.where("#{CamaleonCms::TermTaxonomy.table_name}.parent_id = ?", self.id)
   end
 
-  # save multiple option at once
-  # sample: set_options_from_form({option1: 1, option2: 'b', ..})
-  def set_options_from_form(metas = [])
-    if metas.present?
-      metas.each do |key, value|
-        self.set_option(key, value)
-      end
-    end
-  end
-
   # return all menu items in which this taxonomy was assigned
   def in_nav_menu_items
-    CamaleonCms::NavMenuItem.joins(:metas).where("value LIKE ?","%\"object_id\":\"#{self.id}\"%").where("value LIKE ?","%\"type\":\"#{self.taxonomy}\"%").readonly(false)
+    CamaleonCms::NavMenuItem.where(url: self.id, kind: self.taxonomy)
   end
 
   # permit to skip slug validations for children models, like menu items

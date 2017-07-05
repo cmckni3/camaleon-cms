@@ -30,7 +30,7 @@ body {
 .wrapper {
   min-height: 100%;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 .wrapper:before,
 .wrapper:after {
@@ -2207,7 +2207,7 @@ a:focus {
   display: block;
 }
 .btn-default {
-  background-color: #f4f4f4;
+  //background-color: #f4f4f4;
   color: #444;
   border-color: #ddd;
 }

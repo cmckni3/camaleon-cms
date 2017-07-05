@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::ThemeHelper
   def theme_init()
     @_front_breadcrumb = []
@@ -14,7 +6,7 @@ module CamaleonCms::ThemeHelper
   # return theme full asset path
   # theme_name: theme name, if nil, then will use current theme
   # asset: asset file name, if asset is present return full path to this asset
-  # sample: <script src="<%= theme_asset_path("js/admin.js") %>"></script> => return: /assets/themes/my_theme/assets/css/main-54505620f.css
+  # sample: <script src="<%= theme_asset_path("js/admin.js") %>"></script> => return: /assets/themes/my_theme/assets/js/admin-54505620f.js
   def theme_asset_path(asset = nil, theme_name = nil)
     if theme_name.present? && theme_name.include?("/")
       return theme_asset_url(theme_name, current_theme.slug)
@@ -40,7 +32,7 @@ module CamaleonCms::ThemeHelper
   def theme_asset_url(asset, theme_name = nil)
     p = theme_asset_path(asset, theme_name)
     begin
-      asset_url(p)
+      ActionController::Base.helpers.asset_url(p)
     rescue NoMethodError => e
       p
     end

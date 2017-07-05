@@ -1,6 +1,7 @@
 require 'json'
 class PluginRoutes
   @@_vars = []
+  @@_after_reload = []
   # load plugin routes if it is enabled
   def self.load(env = "admin")
     plugins = all_enabled_plugins
@@ -65,7 +66,7 @@ class PluginRoutes
   class << self
     # return plugin information
     def plugin_info(plugin_key)
-      self.all_plugins.each{|p| return p if p["key"] == plugin_key }
+      self.all_plugins.each{|p| return p if p["key"] == plugin_key || p['path'].split('/').last == plugin_key }
       nil
     end
 
@@ -95,6 +96,18 @@ class PluginRoutes
       cache_variable("statis_system_info", settings)
     end
     alias_method :system_info, :static_system_info
+
+    def isRails4?
+      Rails.version.to_s[0].to_i == 4
+    end
+
+    def isRails5?
+      Rails.version.to_s[0].to_i == 5
+    end
+    # convert action parameter into hash
+    def fixActionParameter(h)
+      (h.is_a?(ActionController::Parameters) ? (h.permit!.to_h rescue h.to_hash) : h)
+    end
   end
 
   # reload routes
@@ -102,6 +115,12 @@ class PluginRoutes
     @@all_sites = nil
     @@_vars.each { |v| class_variable_set("@@cache_#{v}", nil) }
     Rails.application.reload_routes!
+    @@_after_reload.uniq.each{|r| eval(r) }
+  end
+
+  # permit to add extra actions for reload routes
+  def self.add_after_reload_routes(command)
+    @@_after_reload << command
   end
 
   # return all enabled plugins []
@@ -178,16 +197,6 @@ class PluginRoutes
     cache_variable("plugins_helper", res.uniq)
   end
 
-  def self.plugin_helpers
-    r = cache_variable("plugins_helper")
-    return r unless r.nil?
-    res = []
-    all_enabled_apps.each do |settings|
-      res += settings["helpers"] if settings["helpers"].present?
-    end
-    cache_variable("plugins_helper", res)
-  end
-
   # destroy plugin
   def self.destroy_plugin(plugin_key)
     FileUtils.rm_r(Rails.root.join("app", "apps", "plugins", plugin_key)) rescue ""
@@ -201,7 +210,7 @@ class PluginRoutes
   end
 
   def self.cache_variable(var_name, value=nil)
-    @@_vars.push(var_name).uniq
+    @@_vars.push(var_name).uniq!
     #if Rails.env != "development" # disable cache plugin routes for develoment mode
       cache = class_variable_get("@@cache_#{var_name}") rescue nil
       return cache if value.nil?
@@ -213,10 +222,15 @@ class PluginRoutes
   # return all sites registered for Plugin routes
   def self.get_sites
     begin
-      @@all_sites ||= CamaleonCms::Site.order(id: :asc).all
+      @@all_sites ||= CamaleonCms::Site.order(id: :asc).all.to_a
     rescue
       []
     end
+  end
+
+  # check if db migrate already done
+  def self.db_installed?
+    @@is_db_installed ||= ActiveRecord::Base.connection.table_exists?(CamaleonCms::Site.table_name)
   end
 
   # return all locales for all sites joined by |
@@ -227,6 +241,12 @@ class PluginRoutes
       res += s.get_languages
     end
     cache_variable("site_all_locales", res.uniq.join("|"))
+  end
+
+  # return all translations for all languages, sample: ['Sample', 'Ejemplo', '....']
+  def self.all_translations(key, *args)
+    args = args.extract_options!
+    all_locales.split('|').map{|_l| I18n.t(key, args.merge({locale: _l})) }.uniq
   end
 
   # return all locales for translated routes
@@ -307,9 +327,10 @@ class PluginRoutes
         p = JSON.parse(File.read(config))
         p = p.with_indifferent_access rescue p
         p["key"] = gem.name if p["key"].nil? # TODO REVIEW ERROR FOR conflict plugin keys
-        #p["key"] = File.basename(path)
+        p["version"] = gem.version.to_s
         p["path"] = path
         p["kind"] = "plugin"
+        p["descr"] = gem.description unless p["descr"].present?
         p["gem_mode"] = true
         entries << p
       end
@@ -346,5 +367,40 @@ class PluginRoutes
     false
   rescue
     Gem.available?(name)
+  end
+  
+  # return the default url options for Camaleon CMS
+  def self.default_url_options
+    {host: (CamaleonCms::Site.main_site.slug rescue "")}
+  end
+  
+  def self.migration_class
+    isRails4? ? ActiveRecord::Migration : ActiveRecord::Migration[4.2]
+  end
+end
+CamaManager = PluginRoutes
+
+#********* fix missing helper method for breadcrumb on rails gem **********#
+if PluginRoutes.isRails5?
+  module BreadcrumbsOnRails
+    module ActionController extend ActiveSupport::Concern
+      def self.included(base = nil, &block)
+        if base.nil?
+          @_included_block = block
+        else
+          super
+        end
+      end
+
+      included do |base|
+        extend          ClassMethods
+        helper          HelperMethods if respond_to? :helper
+        helper_method   :add_breadcrumb, :breadcrumbs  if respond_to? :helper_method
+
+        unless base.respond_to?(:before_action)
+          base.alias_method :before_action, :before_filter
+        end
+      end
+    end
   end
 end

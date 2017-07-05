@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module ActiveRecordExtras
   module Relation
     extend ActiveSupport::Concern
@@ -37,9 +29,7 @@ ActiveRecord::Associations::CollectionProxy.class_eval do
   # order: (String) order direction (ASC | DESC)
   # sample: CamaleonCms::Site.first.posts.sort_by_field("untitled-field-attributes", "desc")
   def sort_by_field(key, order = "ASC")
-    # class_name = self.build.class.name
-    # table_name = class_name.classify.table_name
-    self.includes(:custom_field_values).where("#{CamaleonCms::CustomFieldsRelationship.table_name}.custom_field_slug = ? and #{CamaleonCms::CustomFieldsRelationship.table_name}.object_class = ?", key, self.build.class.name).reorder("#{CamaleonCms::CustomFieldsRelationship.table_name}.value #{order}")
+    self.joins("LEFT OUTER JOIN #{CamaleonCms::CustomFieldsRelationship.table_name} ON #{CamaleonCms::CustomFieldsRelationship.table_name}.objectid = #{self.build.class.table_name}.id").where("#{CamaleonCms::CustomFieldsRelationship.table_name}.custom_field_slug = ? and #{CamaleonCms::CustomFieldsRelationship.table_name}.object_class = ?", key, self.build.class.name.parseCamaClass).reorder("#{CamaleonCms::CustomFieldsRelationship.table_name}.value #{order}")
   end
 
   # Filter by custom field values
@@ -48,8 +38,10 @@ ActiveRecord::Associations::CollectionProxy.class_eval do
   # sample: my_posts_that_include_my_field = CamaleonCms::Site.first.posts.filter_by_field("untitled-field-attributes")
   #   this will return all posts of the first site that include custom field "untitled-field-attributes"
   #   additionally, you can add extra filter: my_posts_that_include_my_field.where("#{CamaleonCms::CustomFieldsRelationship.table_name}.value=?", "my_value_for_field")
-  def filter_by_field(key)
-    self.includes(:custom_field_values).where("#{CamaleonCms::CustomFieldsRelationship.table_name}.custom_field_slug = ? and #{CamaleonCms::CustomFieldsRelationship.table_name}.object_class = ?", key, self.build.class.name)
+  def filter_by_field(key, args = {})
+    res = self.joins("LEFT OUTER JOIN #{CamaleonCms::CustomFieldsRelationship.table_name} ON #{CamaleonCms::CustomFieldsRelationship.table_name}.objectid = #{self.build.class.table_name}.id").where("#{CamaleonCms::CustomFieldsRelationship.table_name}.custom_field_slug = ? and #{CamaleonCms::CustomFieldsRelationship.table_name}.object_class = ?", key, self.build.class.name.parseCamaClass)
+    res = res.where("#{CamaleonCms::CustomFieldsRelationship.table_name}.value = ?", args[:value]) if args[:value]
+    res
   end
 end
 
@@ -90,5 +82,14 @@ ActiveRecord::Base.class_eval do
   # internal helper to generate cache key
   def cama_build_cache_key(key)
     _key = "cama_cache_#{self.class.name}_#{self.id}_#{key}"
+  end
+  
+  # check if an attribute was changed
+  def cama_attr_changed?(attr_name)
+    if self.methods.include?(:saved_change_to_attribute?)
+      self.saved_change_to_attribute?(attr_name.to_sym)
+    else
+      self.send("#{attr_name}_changed?")
+    end
   end
 end

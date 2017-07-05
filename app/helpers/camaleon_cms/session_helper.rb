@@ -1,25 +1,26 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 module CamaleonCms::SessionHelper
   # log in the user in to system
   # user: User model
   # remember_me: true/false (remember session permanently)
+  # redirect_url (default nil): after initialized the session, this will be redirected to
+  #   "redirect_url" if defined
+  #   it doesn't redirect if redirect_url === false
+  #   return to previous page if defined the cookie['return_to'] or login url received extra param: return_to=http://mysite.com
   def login_user(user, remember_me = false, redirect_url = nil)
     c = {value: [user.auth_token, request.user_agent, request.ip], expires: 24.hours.from_now}
     c[:domain] = :all if PluginRoutes.system_info["users_share_sites"].present? && CamaleonCms::Site.count > 1
     c[:expires] = 1.month.from_now if remember_me
+
+    # fix to overwrite a cookie
+    cookies.delete(:auth_token, domain: :all)
+    cookies.delete(:auth_token)
 
     user.update({last_login_at: Time.zone.now})
     cookies[:auth_token] = c
 
     # user redirection
     flash[:notice] = t('camaleon_cms.admin.login.message.success', locale: current_site.get_admin_language)
+    return if redirect_url === false
     if redirect_url.present?
       redirect_to redirect_url
     elsif (return_to = cookies.delete(:return_to)).present?
@@ -32,7 +33,7 @@ module CamaleonCms::SessionHelper
   # login a user using username and password
   # return boolean: true => authenticated, false => authentication failed
   def login_user_with_password(username, password)
-    @user = current_site.users.find_by_username(username)
+    @user = current_site.users.by_username(username).first
     r = {user: @user, params: params, password: password, captcha_validate: true}; hooks_run('user_before_login', r)
     @user && @user.authenticate(password)
   end
@@ -41,15 +42,12 @@ module CamaleonCms::SessionHelper
   # User registration.
   #
   # user_data must contain:
+  # - first_name
   # - email
   # - username
   # - password
   # - password_confirmation
-  #
-  # meta must contain:
-  # - first_name
-  # - last_name
-  #
+
   def cama_register_user(user_data, meta)
     @user = current_site.users.new(user_data)
     r = {user: @user, params: params}; hook_run('user_before_register', r)
@@ -58,7 +56,7 @@ module CamaleonCms::SessionHelper
       {:result => false, :type => :captcha_error, :message => t('camaleon_cms.admin.users.message.error_captcha')}
     else
       if @user.save
-        @user.set_meta_from_form(meta)
+        @user.set_metas(meta)
         message = current_site.need_validate_email? ? t('camaleon_cms.admin.users.message.created_pending_validate_email') : t('camaleon_cms.admin.users.message.created')
         r = {user: @user, message: message, redirect_url: cama_admin_login_path}; hooks_run('user_after_register', r)
         {:result => true, :message => r[:message], :redirect_url => r[:redirect_url]}
@@ -77,7 +75,7 @@ module CamaleonCms::SessionHelper
   # after switched, this will be redirected to redirect_url or admin dashboard
   def session_switch_user(user, redirect_url = nil)
     if cama_sign_in?
-      cookies[:parent_auth_token] = cookies[:auth_token]
+      session[:parent_auth_token] = cookies[:auth_token]
       login_user(user, false, redirect_url)
     end
   end
@@ -85,8 +83,9 @@ module CamaleonCms::SessionHelper
   # switch current session into parent session called by session_switch_user
   # after returned into parent session, this will be redirected to redirect_url or admin dashboard
   def session_back_to_parent(redirect_url = nil)
-    if cama_sign_in? && cookies[:parent_auth_token].present?
-      cookies[:auth_token] = cookies[:parent_auth_token]
+    if cama_sign_in? && session[:parent_auth_token].present?
+      cookies[:auth_token] = session[:parent_auth_token]
+      session.delete(:parent_auth_token)
       redirect_to (redirect_url || cama_admin_dashboard_path), notice: "Welcome back!"
     end
   end
@@ -111,7 +110,7 @@ module CamaleonCms::SessionHelper
   # return the role for current user
   # if not logged in, then return 'public'
   def cama_current_role
-    (cama_sign_in?) ? cama_current_user.role : 'public'
+    current_site.visitor_role
   end
 
   # return current user logged in
@@ -119,18 +118,16 @@ module CamaleonCms::SessionHelper
     return @cama_current_user if defined?(@cama_current_user)
     # api current user...
     @cama_current_user = cama_calc_api_current_user
-    return @cama_current_user unless @cama_current_user.nil?
+    return @cama_current_user if @cama_current_user
 
     return nil unless cookies[:auth_token].present?
     c = cookies[:auth_token].split("&")
     return nil unless c.size == 3
 
-    if c[1] == request.user_agent && request.ip == c[2]
-      @cama_current_user = (current_site.users_include_admins.find_by_auth_token(c[0]).decorate rescue nil)
+    if c[1] == request.user_agent.to_s && request.ip == c[2]
+      @cama_current_user = current_site.users_include_admins.find_by_auth_token(c[0]).try(:decorate)
     end
   end
-
-  alias_method :current_user, :cama_current_user
 
   # check if a visitor was logged in
   # if the user was not logged in, then redirect to login url
@@ -152,6 +149,13 @@ module CamaleonCms::SessionHelper
   private
   # calculate the current user for API
   def cama_calc_api_current_user
-    current_site.users_include_admins.find(doorkeeper_token.resource_owner_id).decorate if doorkeeper_token rescue nil
+    begin
+      doorkeeper_token
+    rescue NameError
+      # hack, this method should be called from a context which has
+      # doorkeeper_token defined
+      return nil
+    end
+    current_site.users_include_admins.find_by_id(doorkeeper_token.resource_owner_id).try(:decorate) if doorkeeper_token
   end
 end

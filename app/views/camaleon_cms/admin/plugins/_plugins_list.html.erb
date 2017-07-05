@@ -13,11 +13,15 @@
             </tr>
             </thead>
             <tbody>
-            <% plugins.each do |plugin| status = enabled_plugins.include?(plugin); r = {links: ["Version: #{plugin["version"]}"]}; %>
+            <% plugins.each do |plugin| status = enabled_plugins.include?(plugin); r = {links: ["Version: #{plugin["version"]}"], plugin: plugin}; %>
                 <tr>
                     <td>
                         <b><%= plugin["title"] %></b>
                         <br>
+                        <% # sample:
+                           # def cama_stripe_donation_plugin_options(args)
+                           #   args[:links] << link_to('Settings', admin_plugins_cama_stripe_donation_settings_path)
+                           # end %>
                         <% hook_run(plugin, "plugin_options", r) if status %>
                         <%= raw r[:links].join(" | ") %>
                     </td>

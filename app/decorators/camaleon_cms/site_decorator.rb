@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   delegate_all
 
@@ -26,9 +18,9 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   # return all contents from this site registered for post_type = slug (filter visibility, hidden, expired, ...)
   # slug_or_id: slug or id of the post_type or array of slugs of post_types, default 'post'
   def the_contents(slug_or_id = "post")
-    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.id = ?", slug_or_id)).eager_load(:post_type) if slug_or_id.is_a?(Integer)
-    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.slug = ?", slug_or_id)).eager_load(:post_type) if slug_or_id.is_a?(String)
-    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.slug in (?)", slug_or_id)).eager_load(:post_type) if slug_or_id.is_a?(Array)
+    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.id = ?", slug_or_id)) if slug_or_id.is_a?(Integer)
+    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.slug = ?", slug_or_id)) if slug_or_id.is_a?(String)
+    return h.verify_front_visibility(object.posts.where("#{CamaleonCms::TermTaxonomy.table_name}.slug in (?)", slug_or_id)) if slug_or_id.is_a?(Array)
   end
 
   # return all contents for this site filteredby (visibility, hidden, expired, ...)
@@ -41,7 +33,7 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
     if slug_or_id.present?
       the_contents(slug_or_id)
     else
-      h.verify_front_visibility(object.posts).eager_load(:post_type)
+      h.verify_front_visibility(object.posts)
     end
   end
 
@@ -96,12 +88,12 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   # return the user object with id or username = id_or_username from this site
   def the_user(id_or_username)
     return object.users.where(id: id_or_username).first.decorate rescue nil if id_or_username.is_a?(Integer)
-    return object.users.find_by_username(id_or_username).decorate rescue nil if id_or_username.is_a?(String)
+    return object.users.by_username(id_or_username).first.decorate rescue nil if id_or_username.is_a?(String)
   end
 
   # return all post types for this site
   def the_post_types
-    object.post_types.eager_load(:metas)
+    object.post_types
   end
 
   # return a post_type object with id or slug = slug_or_id
@@ -127,7 +119,7 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
     lan.each do |lang|
       path = lang.to_s+'.png'
       img = "<img src='#{h.asset_path("camaleon_cms/language/#{path}")}'/>"
-      res << "<li class='#{ current_class if I18n.locale.to_s == lang.to_s}'> <a href='#{h.cama_url_to_fixed(current_page ? "url_for" : "cama_root_url", {locale: lang})}'>#{img}</a> </li>"
+      res << "<li class='#{ current_class if I18n.locale.to_s == lang.to_s}'> <a href='#{h.cama_url_to_fixed(current_page ? "url_for" : "cama_root_url", {locale: lang, cama_set_language: lang})}'>#{img}</a> </li>"
     end
     res << "</ul>"
     res.join("")
@@ -141,7 +133,7 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   # return the role_id of current visitor for this site
   # if the visitor was not logged in, then return -1
   def visitor_role
-    h.signin? ? h.cama_current_user.get_role(object).slug : "-1"
+    h.signin? ? h.cama_current_user.role : '-1'
   end
 
   # check if plugin_key is already installed for this site
@@ -152,22 +144,20 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   end
 
   # return root url for this site
+  # args = {skip_relative_url_root: true/false(default), as_path: true/false(default)}
   def the_url(*args)
     args = args.extract_options!
-    unless args[:as_path]
-      args[:host] = object.main_site? ? object.slug : (object.slug.include?(".") ? object.slug : "#{object.slug}.#{Cama::Site.main_site.slug}")
-      args[:port] = (args[:host].split(":")[1] rescue nil)
-      args[:host] = args[:host].split(":").first
-    end
+    args[:site] = self
+    args[:host], args[:port] = object.get_domain.to_s.split(':') if !args[:as_path] && (h.current_site rescue false) != self # fix for different site of current visited site
+    h.cama_current_site_host_port(args) unless args[:as_path]
     args[:locale] = @_deco_locale unless args.include?(:locale)
     postfix = 'url'
     postfix = 'path' if args.delete(:as_path)
-    begin
-      h.cama_url_to_fixed("cama_root_#{postfix}", args)
-    rescue # undefined method `host' for nil:NilClass (called from rake:tasks)
-      parms = args.except(:host, :port, :locale, :as_path)
-      "http://#{args[:host]}#{":#{args[:port]}" if args[:port].present?}#{"/#{args[:locale]}" if args[:locale].present?}/#{"?#{parms.to_param}" if parms.present?}"
-    end
+    skip_relative_url_root = args.delete(:skip_relative_url_root)
+    h.cama_current_site_host_port(args) unless args.keys.include?(:host)
+    res = h.cama_url_to_fixed("cama_root_#{postfix}", args)
+    res = res.sub("/#{PluginRoutes.static_system_info['relative_url_root']}", '') if skip_relative_url_root && PluginRoutes.static_system_info['relative_url_root'].present?
+    res
   end
 
   # return the path for this site
@@ -187,11 +177,23 @@ class CamaleonCms::SiteDecorator < CamaleonCms::TermTaxonomyDecorator
   def the_admin_url
     host = object.main_site? ? object.slug : (object.slug.include?(".") ? object.slug : "#{object.slug}.#{Cama::Site.main_site.slug}")
     port = (host.split(":")[1] rescue nil)
-    h.cama_url_to_fixed("cama_admin_dashboard_url", host: host, port: port, locale: false)
+    h.cama_url_to_fixed("cama_admin_dashboard_url", host: host, port: port, locale: nil)
   end
 
   # check if current user can manage sites
   def manage_sites?
-    self.main_site? && h.current_user.admin?
+    self.main_site? && h.cama_current_user.admin?
+  end
+
+  # return the text status of current site
+  def the_status
+    I18n.t("camaleon_cms.models.site.status_options.#{object.status || 'active'}", default: (object.status || 'active').titleize)
+  end
+
+  # return an array for select options of all status for this site
+  def the_status_options
+    ['active', 'inactive', 'maintenance'].map do |o|
+      [I18n.t("camaleon_cms.models.site.status_options.#{o}", default: o.titleize), o == 'active' ? '': o]
+    end
   end
 end

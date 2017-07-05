@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 #encoding: utf-8
 module CamaleonCms::Admin::PostTypeHelper
 
@@ -63,13 +55,13 @@ module CamaleonCms::Admin::PostTypeHelper
     categories.decorate.each do |f|
       html += "<li>"
       html +=  "<label class='class_slug' data-post_link_edit='#{f.the_edit_url}'> "
-      html +=  "<input type='#{type}' name='#{name}[]' #{ values.to_i.include?(f.id) ? "checked" : ""} value='#{f.id}' class = '#{ "required" if required }' />"
+      html +=  "<input data-error-place='#validation_error_list_#{name}' type='#{type}' name='#{name}[]' #{ values.to_i.include?(f.id) ? "checked" : ""} value='#{f.id}' class = '#{ "required" if required }' />"
       html += "#{f.the_title} </label> "
       html +=  post_type_html_inputs(f, "children" , name, type, values, "children")  if f.children.present?
       html += "</li>"
     end
 
-    html += "</ul>"
+    html += "</ul><div id='validation_error_list_#{name}'></div>"
     return html
   end
 end

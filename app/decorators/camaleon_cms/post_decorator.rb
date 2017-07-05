@@ -1,11 +1,3 @@
-=begin
-  Camaleon CMS is a content management system
-  Copyright (C) 2015 by Owen Peredo Diaz
-  Email: owenperedo@gmail.com
-  This program is free software: you can redistribute it and/or modify   it under the terms of the GNU Affero General Public License as  published by the Free Software Foundation, either version 3 of the  License, or (at your option) any later version.
-  This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the  GNU Affero General Public License (GPLv3) for more details.
-=end
 class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
   include CamaleonCms::CustomFieldsConcern
   delegate_all
@@ -40,6 +32,7 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
     th = object.get_meta("thumb")
     th.present? ? th : (default || object.post_type.get_option('default_thumb', nil) || h.asset_url("camaleon_cms/image-not-found.png"))
   end
+  alias_method :the_image_url, :the_thumb_url
 
   # check if this page has registered the thumbnail
   def has_thumb?
@@ -65,7 +58,7 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
   def the_url(*args)
     args = args.extract_options!
     args[:locale] = get_locale unless args.include?(:locale)
-    args[:format] = "html"
+    args[:format] = args[:format] || "html"
     args[:slug] = the_slug(args[:locale])
     p = args.delete(:as_path).present? ? "path" : "url"
     l = _calc_locale(args[:locale])
@@ -74,47 +67,41 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
     p_url_format = "hierarchy_post" if ptype.manage_hierarchy?
     case p_url_format
       when "post_of_post_type"
+        args[:label] = I18n.t('routes.group', default: 'group')
         args[:post_type_id] = ptype.id
-        args[:title] = ptype.the_title(args[:locale]).parameterize
-        args[:title] = ptype.the_slug unless args[:title].present?
+        args[:title] = ptype.the_title(args[:locale]).parameterize.presence || ptype.the_slug
       when "post_of_category"
         if ptype.manage_categories?
           cat = object.categories.first.decorate rescue ptype.default_category.decorate
+          args[:label_cat] = I18n.t("routes.category", default: "category")
           args[:category_id] = cat.id
           args[:title] = cat.the_title(args[:locale]).parameterize
           args[:title] = cat.the_slug unless args[:title].present?
         else
           p_url_format = "post"
-          l = ""
         end
       when "post_of_posttype"
-        args[:post_type_title] = ptype.the_title(args[:locale]).parameterize
-        args[:post_type_title] = ptype.the_slug unless args[:post_type_title].present?
-        l = ""
+        args[:post_type_title] = ptype.the_title(args[:locale]).parameterize.presence || ptype.the_slug
       when "post_of_category_post_type"
         if ptype.manage_categories?
           cat = object.categories.first.decorate rescue ptype.default_category.decorate
-          args[:post_type_title] = ptype.the_title(args[:locale]).parameterize
-          args[:post_type_title] = ptype.the_slug unless args[:post_type_title].present?
+          args[:label_cat] = I18n.t("routes.category", default: "category")
+          args[:post_type_title] = ptype.the_title(args[:locale]).parameterize.presence || ptype.the_slug
           args[:category_id] = cat.id
           args[:title] = cat.the_title(args[:locale]).parameterize
           args[:title] = cat.the_slug unless args[:title].present?
         else
           p_url_format = "post"
-          l = ""
         end
       when 'hierarchy_post'
-        l = ""
         if object.post_parent.present?
           slugs = ([args[:slug]]+object.parents.map{|parent| parent.decorate.the_slug(args[:locale]) }).reverse
           args[:slug], args[:parent_title] = slugs.slice(1..-1).join("/"), slugs.first
         else
           p_url_format = "post"
         end
-      else
-        l = ""
     end
-    h.cama_url_to_fixed("cama_#{p_url_format}#{l}_#{p}", args)
+    h.cama_url_to_fixed("cama_#{p_url_format}_#{p}", args)
   end
 
   # return a hash of frontend urls for this post
@@ -131,7 +118,8 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
 
   # return edit url for this post
   def the_edit_url
-    h.edit_cama_admin_post_type_post_url(object.post_type.id, object)
+    args = h.cama_current_site_host_port({})
+    h.edit_cama_admin_post_type_post_url(object.post_type.id, object, args)
   end
 
   # create the html link with edit link
@@ -140,7 +128,7 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
   def the_edit_link(title = nil, attrs = { })
     return '' unless h.cama_current_user.present?
     attrs = {target: "_blank", style: "font-size:11px !important;cursor:pointer;"}.merge(attrs)
-    h.link_to("&rarr; #{title || h.ct("edit")}".html_safe, the_edit_url, attrs)
+    h.link_to("&rarr; #{title || h.ct("edit", default: 'Edit')}".html_safe, the_edit_url, attrs)
   end
 
   # show thumbnail image as html
@@ -161,16 +149,16 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
     case self.status
       when "published"
         color = "info"
-        status = I18n.t('camaleon_cms.admin.post_type.published')
-      when "draft"
+        status = I18n.t('camaleon_cms.admin.post_type.published', default: 'Published')
+      when "draft", "draft_child"
         color = "warning"
-        status = I18n.t('camaleon_cms.admin.table.draft')
+        status = I18n.t('camaleon_cms.admin.table.draft', default: 'Draft')
       when "trash"
         color = "danger"
-        status = I18n.t('camaleon_cms.admin.table.trash')
+        status = I18n.t('camaleon_cms.admin.table.trash', default: 'Trash')
       when "pending"
         color = "default"
-        status = I18n.t('camaleon_cms.admin.table.pending')
+        status = I18n.t('camaleon_cms.admin.table.pending', default: 'Pending')
       else
         color = "default"
         status = self.status
@@ -236,4 +224,14 @@ class CamaleonCms::PostDecorator < CamaleonCms::ApplicationDecorator
     res.html_safe
   end
 
+  # return all related posts of current post
+  def the_related_posts
+    ptype = self.the_post_type
+    ptype.the_posts.joins(:categories).where("#{CamaleonCms::TermRelationship.table_name}" => {term_taxonomy_id: the_categories.pluck(:id)}).distinct
+  end
+
+  # fix for "Using Draper::Decorator without inferred source class"
+  def self.object_class_name
+    'CamaleonCms::Post'
+  end
 end
